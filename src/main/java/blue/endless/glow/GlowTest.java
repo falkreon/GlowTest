@@ -1,11 +1,13 @@
 package blue.endless.glow;
 
+import java.awt.Image;
 import java.awt.image.BufferedImage;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
 import java.io.IOException;
+import java.io.InputStream;
 import java.util.Arrays;
 
 import javax.imageio.ImageIO;
@@ -14,35 +16,25 @@ import org.joml.Matrix3d;
 import org.joml.Matrix4d;
 import org.joml.Vector2d;
 import org.joml.Vector3d;
-import org.joml.Vector3f;
 import org.lwjgl.glfw.GLFW;
-import org.lwjgl.opengl.ARBTextureFilterAnisotropic;
 import org.lwjgl.opengl.GL;
 import org.lwjgl.opengl.GL11;
 import org.lwjgl.opengl.GL20;
-import org.lwjgl.opengl.GL30;
 
 import com.playsawdust.chipper.glow.RenderScheduler;
 import com.playsawdust.chipper.glow.Window;
-import com.playsawdust.chipper.glow.control.DigitalButtonControl;
+import com.playsawdust.chipper.glow.control.ControlSet;
 import com.playsawdust.chipper.glow.control.MouseLook;
 import com.playsawdust.chipper.glow.gl.shader.ShaderError;
 import com.playsawdust.chipper.glow.gl.shader.ShaderIO;
 import com.playsawdust.chipper.glow.gl.shader.ShaderProgram;
-import com.playsawdust.chipper.glow.mesher.TextMesher;
 import com.playsawdust.chipper.glow.mesher.VoxelMesher;
 import com.playsawdust.chipper.glow.gl.BakedModel;
-import com.playsawdust.chipper.glow.gl.LightTexture;
 import com.playsawdust.chipper.glow.gl.Texture;
 import com.playsawdust.chipper.glow.model.Material;
 import com.playsawdust.chipper.glow.model.MaterialAttribute;
-import com.playsawdust.chipper.glow.model.Mesh;
 import com.playsawdust.chipper.glow.model.Model;
-import com.playsawdust.chipper.glow.model.SimpleMaterialAttributeContainer;
-import com.playsawdust.chipper.glow.model.Material.Generic;
-import com.playsawdust.chipper.glow.model.io.OBJLoader;
 import com.playsawdust.chipper.glow.pass.MeshPass;
-import com.playsawdust.chipper.glow.scene.Light;
 import com.playsawdust.chipper.glow.scene.MeshActor;
 import com.playsawdust.chipper.glow.scene.Scene;
 import com.playsawdust.chipper.glow.voxel.MeshableVoxel;
@@ -52,8 +44,13 @@ import com.playsawdust.chipper.glow.voxel.VoxelShape;
 public class GlowTest {
 	private static final int PATCH_SIZE = 128;
 	
-	private static final double SPEED_LIMIT = 0.2;
+	
 	private static final double SPEED_FORWARD = 0.2;
+	private static final double SPEED_RUN = 0.6;
+	
+	private static final double SPEED_LIMIT = SPEED_FORWARD;
+	private static final double SPEED_LIMIT_RUN = SPEED_RUN;
+	
 	private static final double SPEED_STRAFE = 0.15;
 	
 	private static boolean windowSizeDirty = false;
@@ -62,16 +59,38 @@ public class GlowTest {
 	private static int mouseX = 0;
 	private static int mouseY = 0;
 	private static boolean grab = false;
-	private static Vector3d cameraPosition = new Vector3d();
 	
 	public static void main(String... args) {
 		
 		/* Load up asset(s) */
+		BufferedImage MISSINGNO = new BufferedImage(256, 256, BufferedImage.TYPE_INT_ARGB);
+		for(int y=0; y<256; y++) {
+			for(int x=0; x<256; x++) {
+				int p = (x/32 + y/32) % 2;
+				
+				if (p==0) {
+					MISSINGNO.setRGB(x, y, 0xFF_000000);
+				} else {
+					MISSINGNO.setRGB(x, y, 0xFF_FF00FF);
+				}
+			}
+		}
+		
+		BufferedImage stoneImage = MISSINGNO;
+		BufferedImage orangeImage = MISSINGNO;
+		try {
+			stoneImage = ImageIO.read(GlowTest.class.getClassLoader().getResourceAsStream("textures/stone.png"));
+			orangeImage = ImageIO.read(GlowTest.class.getClassLoader().getResourceAsStream("textures/block_face_orange.png"));
+			
+		} catch (IOException e) {
+			e.printStackTrace();
+		}
+		
 		
 		VoxelPatch patch = generate();
 		Model patchModel = VoxelMesher.mesh(0, 0, 0, PATCH_SIZE, 64, PATCH_SIZE, patch::getShape, patch::getMaterial);
-		MeshActor patchActor = new MeshActor();
 		
+		//Save the patch down to disk - kind of slow!
 		/*
 		try(FileOutputStream out = new FileOutputStream("model_save.obj")) {
 			OBJLoader.save(patchModel, out);
@@ -82,11 +101,10 @@ public class GlowTest {
 		}*/
 		
 		MouseLook mouseLook = new MouseLook();
-		DigitalButtonControl grabControl = DigitalButtonControl.forKey(GLFW.GLFW_KEY_TAB);
-		DigitalButtonControl upControl = DigitalButtonControl.forKey(GLFW.GLFW_KEY_W);
-		DigitalButtonControl downControl = DigitalButtonControl.forKey(GLFW.GLFW_KEY_S);
-		DigitalButtonControl leftControl = DigitalButtonControl.forKey(GLFW.GLFW_KEY_A);
-		DigitalButtonControl rightControl = DigitalButtonControl.forKey(GLFW.GLFW_KEY_D);
+		ControlSet movementControls = new ControlSet();
+		movementControls.mapWASD();
+		movementControls.map("grab", GLFW.GLFW_KEY_TAB);
+		movementControls.map("run", GLFW.GLFW_KEY_LEFT_SHIFT);
 		
 		/* Start GL, spawn up a window, load and compile the ShaderProgram, and attach it to the solid MeshPass. */
 		
@@ -97,13 +115,7 @@ public class GlowTest {
 		GLFW.glfwSetKeyCallback(window.handle(), (win, key, scancode, action, mods) -> {
 			if ( key == GLFW.GLFW_KEY_ESCAPE && action == GLFW.GLFW_RELEASE )
 				GLFW.glfwSetWindowShouldClose(window.handle(), true);
-			//System.out.println("Key: "+key+" Code: "+scancode+" Action: "+action+" Mods: "+mods);
-			grabControl.handle(key, scancode, action, mods);
-			upControl.handle(key, scancode, action, mods);
-			downControl.handle(key, scancode, action, mods);
-			leftControl.handle(key, scancode, action, mods);
-			rightControl.handle(key, scancode, action, mods);
-			
+			movementControls.handleKey(key, scancode, action, mods);
 		});
 		
 		GLFW.glfwSetFramebufferSizeCallback(window.handle(), (hWin, width, height)->{
@@ -125,7 +137,8 @@ public class GlowTest {
 		RenderScheduler scheduler = RenderScheduler.createDefaultScheduler();
 		
 		try {
-			prog = ShaderIO.load(new FileInputStream(new File("testshader.xml")));
+			InputStream shaderStream = GlowTest.class.getClassLoader().getResourceAsStream("shaders/solid.xml");
+			prog = ShaderIO.load(shaderStream);
 			MeshPass solidPass = (MeshPass) scheduler.getPass("solid");
 			solidPass.setShader(prog);
 		} catch (IOException ex) {
@@ -134,87 +147,42 @@ public class GlowTest {
 			System.out.println(err.getInfoLog());
 		}
 		
-		Model textModel = TextMesher.getModel("Text rendered in-world");
-		BakedModel bakedText = scheduler.bake(textModel);
+		//Model textModel = TextMesher.getModel("Text rendered in-world");
+		//BakedModel bakedText = scheduler.bake(textModel);
 		
-		/* Bake Meshes into VertexBuffers, create the LightTexture which will hold our lights */
-		//BakedModel bakedModel = scheduler.bake(model);
+		/* Bake Models into BakedModels */
 		BakedModel bakedPatch = scheduler.bake(patchModel);
-		
-		LightTexture lights = new LightTexture();
-		
-		Light light = new Light();
-		light.setPosition(new Vector3d(0, 3, -1));
-		//light.setColor("#fc4");
-		light.setIntensity(1.0);
-		lights.addLight(light);
-		
-		Light underLight = new Light();
-		underLight.setPosition(0, -0.1, -1.5);
-		//underLight.setColor(new Vector3d(1, 0, 1));
-		underLight.setIntensity(0.3);
-		lights.addLight(underLight);
-		
-		lights.upload();
 		
 		BufferedImage none = new BufferedImage(1, 1, BufferedImage.TYPE_INT_ARGB);
 		none.setRGB(0, 0, 0xFF_FFFFFF);
 		Texture noneTex = Texture.of(none);
 		scheduler.registerTexture("none", noneTex);
 		
-		BufferedImage stoneImage = new BufferedImage(1, 1, BufferedImage.TYPE_INT_ARGB);
-		BufferedImage grassImage = new BufferedImage(1, 1, BufferedImage.TYPE_INT_ARGB);
-		try {
-			stoneImage = ImageIO.read(new File("stone.png"));
-			grassImage = ImageIO.read(new File("block_face_orange.png"));
-			
-		} catch (IOException e) {
-			e.printStackTrace();
-		}
-		//Texture tex = new Texture();
-		Texture orangeTex = Texture.of(grassImage);
+		Texture orangeTex = Texture.of(orangeImage);
 		scheduler.registerTexture("orangeDiffuse", orangeTex);
 		Texture tex = Texture.of(stoneImage);
 		scheduler.registerTexture("stoneDiffuse", tex);
 		
 		
-		patchActor.setRenderModel(bakedPatch);
-		patchActor.setPosition(-2, -17, 7);
-		//int[] argbData = testImage.getRGB(0, 0, testImage.getWidth(), testImage.getHeight(), new int[testImage.getWidth() * testImage.getHeight()], 0, testImage.getWidth());
-		//tex.uploadImage(argbData, testImage.getWidth(), testImage.getHeight());
+		/* Setup the Scene */
 		
 		Scene scene = new Scene();
+		
+		MeshActor patchActor = new MeshActor();
+		patchActor.setRenderModel(bakedPatch);
+		patchActor.setPosition(-2, -17, 7);
 		scene.addActor(patchActor);
 		
-		//SimpleMaterialAttributeContainer environment = new SimpleMaterialAttributeContainer();
-		//environment.putMaterialAttribute(MaterialAttribute.AMBIENT_LIGHT, new Vector3d(0.15, 0.15, 0.15));
-		/* Set the clear color, get the matrices for the model and view, and start the render loop */
+		/* Set the clear color, set global GL state, and start the render loop */
 		GL11.glClearColor(0.39f, 0.74f, 1.0f, 0.0f);
 		
-		//Matrix3d rotMatrix = new Matrix3d();
-		
-		Matrix4d viewMatrix = new Matrix4d();
-		viewMatrix.identity();
-		viewMatrix.translate(new Vector3d(0,0,0.5));
-		
-		//long startTime = System.nanoTime() / 1_000_000L;
 		GL11.glEnable(GL11.GL_DEPTH_TEST);
 		GL11.glDepthFunc(GL11.GL_LEQUAL);
-		/*
-		GL11.glTexParameteri(GL11.GL_TEXTURE_2D, GL11.GL_TEXTURE_MIN_FILTER, GL11.GL_NEAREST_MIPMAP_LINEAR);
-		GL11.glTexParameteri(GL11.GL_TEXTURE_2D, GL11.GL_TEXTURE_MAG_FILTER, GL11.GL_NEAREST);
-		if (GL.getCapabilities().GL_ARB_texture_filter_anisotropic) {
-			int maxAnisotropy = GL11.glGetInteger(ARBTextureFilterAnisotropic.GL_MAX_TEXTURE_MAX_ANISOTROPY);
-			int anisotropy = Math.min(8, maxAnisotropy);
-			GL11.glTexParameterf(GL11.GL_TEXTURE_2D, ARBTextureFilterAnisotropic.GL_TEXTURE_MAX_ANISOTROPY, anisotropy);
-		}
-		GL11.glTexParameteri(GL11.GL_TEXTURE_2D, GL11.GL_TEXTURE_WRAP_S, GL11.GL_REPEAT);
-		GL11.glTexParameteri(GL11.GL_TEXTURE_2D, GL11.GL_TEXTURE_WRAP_T, GL11.GL_REPEAT);*/
 		GL11.glEnable(GL20.GL_MULTISAMPLE);
 		
 		GL11.glEnable(GL11.GL_CULL_FACE);
 		
-		Matrix4d projection = new Matrix4d();
+		//Matrix4d projection = new Matrix4d();
 		Vector2d windowSize = new Vector2d();
 		window.getSize(windowSize);
 		windowWidth = (int) windowSize.x();
@@ -228,12 +196,13 @@ public class GlowTest {
 		while ( !GLFW.glfwWindowShouldClose(window.handle()) ) {
 			if (windowSizeDirty) {
 				GL11.glViewport(0, 0, windowWidth, windowHeight);
+				Matrix4d projection = new Matrix4d();
 				projection.setPerspective(SIXTY_DEGREES, windowWidth/(double)windowHeight, 0.01, 1000);
 				scene.setProjectionMatrix(projection);
 			}
 			
-			if (grabControl.isActive()) {
-				grabControl.lock();
+			if (movementControls.isActive("grab")) {
+				movementControls.lock("grab");
 				grab = !grab;
 				if (grab) {
 					GLFW.glfwSetInputMode(window.handle(), GLFW.GLFW_CURSOR, GLFW.GLFW_CURSOR_DISABLED);
@@ -244,46 +213,50 @@ public class GlowTest {
 			if (grab) {
 				Vector3d vectorSum = new Vector3d();
 				
-				if (upControl.isActive()) {
+				if (movementControls.isActive("up")) {
 					Vector3d lookVec = mouseLook.getLookVector(null);
-					lookVec.mul(SPEED_FORWARD);
+					if (movementControls.isActive("run")) {
+						lookVec.mul(SPEED_RUN);
+					} else {
+						lookVec.mul(SPEED_FORWARD);
+					}
+					vectorSum.add(lookVec);
+				}
+				
+				if (movementControls.isActive("down")) {
+					Vector3d lookVec = mouseLook.getLookVector(null);
+					if (movementControls.isActive("run")) {
+						lookVec.mul(-SPEED_RUN);
+					} else {
+						lookVec.mul(-SPEED_FORWARD);
+					}
 					
 					vectorSum.add(lookVec);
 				}
 				
-				if (downControl.isActive()) {
-					Vector3d lookVec = mouseLook.getLookVector(null);
-					lookVec.mul(-SPEED_FORWARD);
-					
-					vectorSum.add(lookVec);
-				}
-				
-				if (rightControl.isActive()) {
+				if (movementControls.isActive("right")) {
 					Vector3d rightVec = mouseLook.getRightVector(null);
 					rightVec.mul(SPEED_STRAFE);
 					
 					vectorSum.add(rightVec);
 				}
 				
-				if (leftControl.isActive()) {
+				if (movementControls.isActive("left")) {
 					Vector3d leftVec = mouseLook.getRightVector(null);
 					leftVec.mul(-SPEED_STRAFE);
 					
 					vectorSum.add(leftVec);
 				}
-				if (vectorSum.length()>SPEED_LIMIT) vectorSum.normalize().mul(SPEED_LIMIT);
+				if (movementControls.isActive("run")) {
+					if (vectorSum.length()>SPEED_LIMIT_RUN) vectorSum.normalize().mul(SPEED_LIMIT_RUN);
+				} else {
+					if (vectorSum.length()>SPEED_LIMIT) vectorSum.normalize().mul(SPEED_LIMIT);
+				}
 				scene.getCamera().setPosition(vectorSum.add(scene.getCamera().getPosition(null)));
 			
 				mouseLook.step(mouseX, mouseY, windowWidth, windowHeight);
 				scene.getCamera().setOrientation(mouseLook.getMatrix());
 			}
-			
-			
-			//long now = System.nanoTime() / 1_000_000L;
-			//long globalTime = now-startTime;
-			
-			//double ofs = 2; //Math.sin(globalTime/2_000.0)*2;
-			//double ofsy = Math.sin(globalTime/4_000.0)*2;
 			
 			scene.render(scheduler, prog);
 			
@@ -293,7 +266,6 @@ public class GlowTest {
 			GLFW.glfwPollEvents();
 		}
 		
-		//bakedModel.destroy();
 		bakedPatch.destroy();
 		tex.destroy();
 		prog.destroy();
