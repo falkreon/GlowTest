@@ -1,0 +1,38 @@
+apply plugin: 'java'
+
+group = 'com.playsawdust.chipper'
+archivesBaseName = 'GlowTest'
+version = '0.0.1'
+
+repositories {
+	mavenCentral()
+	maven { url "https://oss.sonatype.org/content/repositories/snapshots/" }
+}
+
+
+def lwjgl(String... modules) {
+	def ver = '3.2.4-SNAPSHOT'
+	def platforms = [ 'linux', 'macos', 'windows' ]
+	
+	def rtrn = []
+	rtrn.add(dependencies.create("org.lwjgl:lwjgl:${ver}"))
+	modules.each { module ->
+		rtrn.add(dependencies.create("org.lwjgl:lwjgl-${module}:${ver}"))
+	}
+	platforms.each { platform ->
+		rtrn.add(dependencies.create("org.lwjgl:lwjgl:${ver}:natives-${platform}"))
+		modules.each { module ->
+			rtrn.add(dependencies.create("org.lwjgl:lwjgl-${module}:${ver}:natives-${platform}"))
+		}
+	}
+	return rtrn
+}
+
+dependencies {
+	//glow
+	compile 'com.google.guava:guava:28.2-jre';
+	
+	compile lwjgl('glfw', 'openal', 'opengl', 'stb')
+	compile 'org.joml:joml:1.9.12';
+	
+}
