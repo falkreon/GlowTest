@@ -28,6 +28,7 @@ import com.playsawdust.chipper.glow.control.MouseLook;
 import com.playsawdust.chipper.glow.gl.shader.ShaderError;
 import com.playsawdust.chipper.glow.gl.shader.ShaderIO;
 import com.playsawdust.chipper.glow.gl.shader.ShaderProgram;
+import com.playsawdust.chipper.glow.mesher.PlatonicSolidMesher;
 import com.playsawdust.chipper.glow.mesher.VoxelMesher;
 import com.playsawdust.chipper.glow.gl.BakedModel;
 import com.playsawdust.chipper.glow.gl.Texture;
@@ -35,6 +36,8 @@ import com.playsawdust.chipper.glow.model.Material;
 import com.playsawdust.chipper.glow.model.MaterialAttribute;
 import com.playsawdust.chipper.glow.model.Model;
 import com.playsawdust.chipper.glow.pass.MeshPass;
+import com.playsawdust.chipper.glow.scene.Collision;
+import com.playsawdust.chipper.glow.scene.CollisionResult;
 import com.playsawdust.chipper.glow.scene.MeshActor;
 import com.playsawdust.chipper.glow.scene.Scene;
 import com.playsawdust.chipper.glow.voxel.MeshableVoxel;
@@ -89,6 +92,8 @@ public class GlowTest {
 		
 		VoxelPatch patch = generate();
 		Model patchModel = VoxelMesher.mesh(0, 0, 0, PATCH_SIZE, 64, PATCH_SIZE, patch::getShape, patch::getMaterial);
+		
+		Model lookTarget = new Model(PlatonicSolidMesher.meshCube(-0.6, -0.6, -0.6, 1.2, 1.2, 1.2));
 		
 		//Save the patch down to disk - kind of slow!
 		/*
@@ -170,8 +175,11 @@ public class GlowTest {
 		
 		MeshActor patchActor = new MeshActor();
 		patchActor.setRenderModel(bakedPatch);
-		patchActor.setPosition(-2, -17, 7);
 		scene.addActor(patchActor);
+		
+		MeshActor lookTargetActor = new MeshActor();
+		lookTargetActor.setRenderModel(scheduler.bake(lookTarget));
+		scene.addActor(lookTargetActor);
 		
 		/* Set the clear color, set global GL state, and start the render loop */
 		GL11.glClearColor(0.39f, 0.74f, 1.0f, 0.0f);
@@ -256,6 +264,17 @@ public class GlowTest {
 			
 				mouseLook.step(mouseX, mouseY, windowWidth, windowHeight);
 				scene.getCamera().setOrientation(mouseLook.getMatrix());
+				
+				Vector3d lookVec = mouseLook.getLookVector(null);
+				CollisionResult collision = new CollisionResult();
+				Vector3d lookedAt = Collision.raycastVoxel(scene.getCamera().getPosition(null), lookVec, 100, patch::getShape, collision);
+				if (lookedAt!=null) {
+					lookTargetActor.setPosition(collision.getHitLocation());
+					//lookTargetActor.setPosition(collision.getVoxelCenter(null));
+				}
+				//lookVec.mul(5);
+				//lookVec.add(scene.getCamera().getPosition(null));
+				//lookTargetActor.setPosition(lookVec);
 			}
 			
 			scene.render(scheduler, prog);
