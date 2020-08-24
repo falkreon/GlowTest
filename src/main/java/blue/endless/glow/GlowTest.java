@@ -8,7 +8,9 @@ import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.List;
 
 import javax.imageio.ImageIO;
 
@@ -16,6 +18,7 @@ import org.joml.Matrix3d;
 import org.joml.Matrix4d;
 import org.joml.Vector2d;
 import org.joml.Vector3d;
+import org.joml.Vector3dc;
 import org.lwjgl.glfw.GLFW;
 import org.lwjgl.opengl.GL;
 import org.lwjgl.opengl.GL11;
@@ -93,7 +96,8 @@ public class GlowTest {
 		VoxelPatch patch = generate();
 		Model patchModel = VoxelMesher.mesh(0, 0, 0, PATCH_SIZE, 64, PATCH_SIZE, patch::getShape, patch::getMaterial);
 		
-		Model lookTarget = new Model(PlatonicSolidMesher.meshCube(-0.6, -0.6, -0.6, 1.2, 1.2, 1.2));
+		double lookTargetSize = 1 + 1/32.0;
+		Model lookTarget = new Model(PlatonicSolidMesher.meshCube(-lookTargetSize/2, -lookTargetSize/2, -lookTargetSize/2, lookTargetSize, lookTargetSize, lookTargetSize));
 		
 		//Save the patch down to disk - kind of slow!
 		/*
@@ -177,8 +181,19 @@ public class GlowTest {
 		patchActor.setRenderModel(bakedPatch);
 		scene.addActor(patchActor);
 		
+		
+		BakedModel bakedLookTarget = scheduler.bake(lookTarget);
+		
+		/*
+		ArrayList<MeshActor> targetLineActors = new ArrayList<>();
+		for(int i=0; i<15; i++) {
+			MeshActor actor = new MeshActor();
+			actor.setRenderModel(bakedLookTarget);
+			scene.addActor(actor);
+			targetLineActors.add(actor);
+		}*/
 		MeshActor lookTargetActor = new MeshActor();
-		lookTargetActor.setRenderModel(scheduler.bake(lookTarget));
+		lookTargetActor.setRenderModel(bakedLookTarget);
 		scene.addActor(lookTargetActor);
 		
 		/* Set the clear color, set global GL state, and start the render loop */
@@ -267,10 +282,27 @@ public class GlowTest {
 				
 				Vector3d lookVec = mouseLook.getLookVector(null);
 				CollisionResult collision = new CollisionResult();
-				Vector3d lookedAt = Collision.raycastVoxel(scene.getCamera().getPosition(null), lookVec, 100, patch::getShape, collision);
+				Vector3d lookedAt = Collision.raycastVoxel(scene.getCamera().getPosition(null), lookVec, 100, patch::getShape, collision, false);
 				if (lookedAt!=null) {
-					lookTargetActor.setPosition(collision.getHitLocation());
-					//lookTargetActor.setPosition(collision.getVoxelCenter(null));
+					//List<Vector3dc> raySteps = collision.getSteps();
+					
+					//for(int i=0; i<targetLineActors.size(); i++) {
+						
+					//	if (raySteps.size()>i+1) {
+					//		MeshActor cur = targetLineActors.get(i);
+					//		cur.setRenderModel(bakedLookTarget);
+					//		cur.setPosition(raySteps.get(i+1));
+					//	} else {
+					//		targetLineActors.get(i).setRenderModel(null);
+					//	}
+					//}
+					
+					
+					//lookTargetActor.setPosition(collision.getHitLocation());
+					lookTargetActor.setPosition(collision.getVoxelCenter(null));
+					lookTargetActor.setRenderModel(bakedLookTarget);
+				} else {
+					lookTargetActor.setRenderModel(null);
 				}
 				//lookVec.mul(5);
 				//lookVec.add(scene.getCamera().getPosition(null));
