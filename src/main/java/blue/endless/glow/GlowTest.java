@@ -8,6 +8,7 @@ import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
@@ -19,10 +20,12 @@ import org.joml.Matrix4d;
 import org.joml.Vector2d;
 import org.joml.Vector3d;
 import org.joml.Vector3dc;
+import org.joml.Vector3i;
 import org.lwjgl.glfw.GLFW;
 import org.lwjgl.opengl.GL;
 import org.lwjgl.opengl.GL11;
 import org.lwjgl.opengl.GL20;
+import org.lwjgl.stb.STBPerlin;
 
 import com.playsawdust.chipper.glow.RenderScheduler;
 import com.playsawdust.chipper.glow.Window;
@@ -41,6 +44,7 @@ import com.playsawdust.chipper.glow.model.Model;
 import com.playsawdust.chipper.glow.pass.MeshPass;
 import com.playsawdust.chipper.glow.scene.Collision;
 import com.playsawdust.chipper.glow.scene.CollisionResult;
+import com.playsawdust.chipper.glow.scene.Light;
 import com.playsawdust.chipper.glow.scene.MeshActor;
 import com.playsawdust.chipper.glow.scene.Scene;
 import com.playsawdust.chipper.glow.voxel.MeshableVoxel;
@@ -84,17 +88,19 @@ public class GlowTest {
 		
 		BufferedImage stoneImage = MISSINGNO;
 		BufferedImage orangeImage = MISSINGNO;
+		BufferedImage grassImage = MISSINGNO;
 		try {
 			stoneImage = ImageIO.read(GlowTest.class.getClassLoader().getResourceAsStream("textures/stone.png"));
+			grassImage = ImageIO.read(GlowTest.class.getClassLoader().getResourceAsStream("textures/grass.png"));
 			orangeImage = ImageIO.read(GlowTest.class.getClassLoader().getResourceAsStream("textures/block_face_orange.png"));
 			
-		} catch (IOException e) {
+		} catch (IOException | IllegalArgumentException e) {
 			e.printStackTrace();
 		}
 		
 		
-		VoxelPatch patch = generate();
-		Model patchModel = VoxelMesher.mesh(0, 0, 0, PATCH_SIZE, 64, PATCH_SIZE, patch::getShape, patch::getMaterial);
+		//VoxelPatch patch = generate();
+		//Model patchModel = VoxelMesher.mesh(0, 0, 0, PATCH_SIZE, 64, PATCH_SIZE, patch::getShape, patch::getMaterial);
 		
 		double lookTargetSize = 1 + 1/32.0;
 		Model lookTarget = new Model(PlatonicSolidMesher.meshCube(-lookTargetSize/2, -lookTargetSize/2, -lookTargetSize/2, lookTargetSize, lookTargetSize, lookTargetSize));
@@ -160,7 +166,7 @@ public class GlowTest {
 		//BakedModel bakedText = scheduler.bake(textModel);
 		
 		/* Bake Models into BakedModels */
-		BakedModel bakedPatch = scheduler.bake(patchModel);
+		//BakedModel bakedPatch = scheduler.bake(patchModel);
 		
 		BufferedImage none = new BufferedImage(1, 1, BufferedImage.TYPE_INT_ARGB);
 		none.setRGB(0, 0, 0xFF_FFFFFF);
@@ -171,15 +177,38 @@ public class GlowTest {
 		scheduler.registerTexture("orangeDiffuse", orangeTex);
 		Texture tex = Texture.of(stoneImage);
 		scheduler.registerTexture("stoneDiffuse", tex);
+		Texture grassTex = Texture.of(grassImage);
+		scheduler.registerTexture("grassDiffuse", grassTex);
 		
 		
 		/* Setup the Scene */
 		
 		Scene scene = new Scene();
 		
-		MeshActor patchActor = new MeshActor();
-		patchActor.setRenderModel(bakedPatch);
-		scene.addActor(patchActor);
+		//MeshActor patchActor = new MeshActor();
+		//patchActor.setRenderModel(bakedPatch);
+		//scene.addActor(patchActor);
+		
+		ChunkManager chunkManager = new ChunkManager();
+		//chunkManager.pan(5, 5, 5);
+		ArrayList<Vector3i> pendingChunkList = new ArrayList<>();
+		chunkManager.scheduleAll(pendingChunkList);
+		
+		//System.out.println("Pending chunks: "+pendingChunks);
+		/*
+		int count = pendingChunkList.size();
+		for(int i=0; i<count; i++) {
+			Vector3i chunkPos = pendingChunkList.remove(0);
+			if (chunkPos.x<0 || chunkPos.y<0 || chunkPos.z<0) continue; //Skip negative positions, this is a quick and dirty game
+			Chunk chunk = Chunk.create();
+			chunk.setPosition(new Vector3d(chunkPos.x*32.0, chunkPos.y*32.0, chunkPos.z*32.0));
+			//System.out.println("Added chunk at "+chunk.getPosition(null));
+			generateInto(chunk);
+			chunkManager.set(chunkPos.x, chunkPos.y, chunkPos.z, chunk);
+			chunk.mesh();
+			chunk.bake(scheduler);
+			scene.addActor(chunk);
+		}*/
 		
 		
 		BakedModel bakedLookTarget = scheduler.bake(lookTarget);
@@ -214,7 +243,9 @@ public class GlowTest {
 		double SIXTY_DEGREES = 60.0 * (Math.PI/180.0);
 		prog.bind();
 		
-		
+		Light sun = scene.getSun();
+		sun.setRadius(4096);
+		sun.setPosition(5*32, 5*32, 5*32);
 		
 		while ( !GLFW.glfwWindowShouldClose(window.handle()) ) {
 			if (windowSizeDirty) {
@@ -282,7 +313,7 @@ public class GlowTest {
 				
 				Vector3d lookVec = mouseLook.getLookVector(null);
 				CollisionResult collision = new CollisionResult();
-				Vector3d lookedAt = Collision.raycastVoxel(scene.getCamera().getPosition(null), lookVec, 100, patch::getShape, collision, false);
+				Vector3d lookedAt = Collision.raycastVoxel(scene.getCamera().getPosition(null), lookVec, 100, chunkManager::getShape, collision, false);
 				if (lookedAt!=null) {
 					//List<Vector3dc> raySteps = collision.getSteps();
 					
@@ -315,29 +346,47 @@ public class GlowTest {
 			
 			
 			GLFW.glfwPollEvents();
+			if (!pendingChunkList.isEmpty()) bakeOne(pendingChunkList, chunkManager, scheduler, scene);
 		}
 		
-		bakedPatch.destroy();
+		chunkManager.destroy();
+		//bakedPatch.destroy();
 		tex.destroy();
 		prog.destroy();
 	}
 	
 	
+	private static final Material.Generic MATERIAL_STONE = new Material.Generic()
+			.with(MaterialAttribute.DIFFUSE_COLOR, new Vector3d(1,1,1))
+			.with(MaterialAttribute.SPECULARITY, 0.01)
+			.with(MaterialAttribute.DIFFUSE_TEXTURE_ID, "stoneDiffuse")
+			.with(MaterialAttribute.EMISSIVITY, 0.0);
+	
+	private static final Material.Generic MATERIAL_GRASS = new Material.Generic()
+			.with(MaterialAttribute.DIFFUSE_COLOR, new Vector3d(1,1,1))
+			.with(MaterialAttribute.SPECULARITY, 0.01)
+			.with(MaterialAttribute.DIFFUSE_TEXTURE_ID, "grassDiffuse")
+			.with(MaterialAttribute.EMISSIVITY, 0.0);
+	
+	private static final Block BLOCK_STONE = new Block()
+			.setShape(VoxelShape.CUBE)
+			.setMaterial(MATERIAL_STONE);
+	
+	private static final Block BLOCK_GRASS = new Block()
+			.setShape(VoxelShape.CUBE)
+			.setMaterial(MATERIAL_GRASS);
+	
+	/*
 	private static VoxelPatch generate() {
 		
 		VoxelPatch patch = new VoxelPatch();
 		patch.setSize(PATCH_SIZE, 64, PATCH_SIZE);
-		MeshableVoxel.Block AIR = new MeshableVoxel.Block();
+		MeshableVoxel.SimpleMeshableVoxel AIR = new MeshableVoxel.SimpleMeshableVoxel();
 		AIR.setShape(VoxelShape.EMPTY);
-		MeshableVoxel.Block STONE = new MeshableVoxel.Block();
+		Block STONE = new Block();
 		STONE.setShape(VoxelShape.CUBE);
-		STONE.setMaterial(new Material.Generic()
-			.with(MaterialAttribute.DIFFUSE_COLOR, new Vector3d(1,1,1))
-			.with(MaterialAttribute.SPECULARITY, 0.5)
-			.with(MaterialAttribute.DIFFUSE_TEXTURE_ID, "stoneDiffuse")
-			.with(MaterialAttribute.EMISSIVITY, 0.0)
-			);
-		MeshableVoxel.Block ORANGE = new MeshableVoxel.Block();
+		STONE.setMaterial(MATERIAL_STONE);
+		MeshableVoxel.SimpleMeshableVoxel ORANGE = new MeshableVoxel.SimpleMeshableVoxel();
 		ORANGE.setShape(VoxelShape.CUBE);
 		ORANGE.setMaterial(new Material.Generic()
 			.with(MaterialAttribute.DIFFUSE_COLOR, new Vector3d(1,1,1))
@@ -362,7 +411,7 @@ public class GlowTest {
 				double sin = Math.sin((x+scroll)/6.0)*3.0;
 				if (sin<0) sin=0;
 				for(int y=0; y<Math.min(height+sin+1, 64); y++) {
-					MeshableVoxel.Block voxel = (materialDensity>0) ? STONE : ORANGE;
+					MeshableVoxel voxel = (materialDensity>0) ? STONE : ORANGE;
 					
 					patch.setVoxel(x, y, z, voxel, false);
 				}
@@ -370,5 +419,46 @@ public class GlowTest {
 		}
 		
 		return patch;
+	}*/
+	
+	
+	private static void generateInto(Chunk chunk) {
+		//Preload the palette
+		chunk.setBlock(0, 0, 0, Block.NOTHING);
+		chunk.setBlock(0, 0, 0, BLOCK_STONE);
+		chunk.setBlock(0, 0, 0, BLOCK_GRASS);
+		chunk.setBlock(0, 0, 0, Block.NOTHING);
+		
+		//TODO: We could accelerate this considerably by intentionally setting the patch palette and then filling in integers directly
+		for(int z=0; z<32; z++) {
+			for(int x=0; x<32; x++) {
+				int wx = x+chunk.getX();
+				int wz = z+chunk.getZ();
+				int wy = chunk.getY();
+				
+				double val = STBPerlin.stb_perlin_ridge_noise3(wx*0.005f, 0, wz*0.005f, 2.0f, 0.5f, 1.0f, 3) * 128.0 + 8.0;
+				
+				for(int y=0; y<32; y++) {
+					Block mountainBlock = (wy+y>64) ? BLOCK_STONE : BLOCK_GRASS;
+					if (wy+y<=val) chunk.setBlock(x, y, z, mountainBlock);
+				}
+				
+				//TODO: Check the sky!
+				//chunk.setBlock(x, 0, z, STONE);
+			}
+		}
+	}
+	
+	private static void bakeOne(List<Vector3i> pendingChunkList, ChunkManager chunkManager, RenderScheduler scheduler, Scene scene) {
+		Vector3i chunkPos = pendingChunkList.remove(0);
+		if (chunkPos.x<0 || chunkPos.y<0 || chunkPos.z<0) return; //Skip negative positions, this is a quick and dirty game
+		Chunk chunk = Chunk.create();
+		chunk.setPosition(new Vector3d(chunkPos.x*32.0, chunkPos.y*32.0, chunkPos.z*32.0));
+		//System.out.println("Added chunk at "+chunk.getPosition(null));
+		generateInto(chunk);
+		chunkManager.set(chunkPos.x, chunkPos.y, chunkPos.z, chunk);
+		chunk.mesh();
+		chunk.bake(scheduler);
+		scene.addActor(chunk);
 	}
 }
