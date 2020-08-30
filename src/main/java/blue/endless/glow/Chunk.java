@@ -1,5 +1,7 @@
 package blue.endless.glow;
 
+import java.util.ArrayList;
+
 import org.checkerframework.checker.nullness.qual.Nullable;
 import org.joml.Matrix3d;
 import org.joml.Matrix3dc;
@@ -12,6 +14,7 @@ import com.playsawdust.chipper.glow.gl.shader.Destroyable;
 import com.playsawdust.chipper.glow.mesher.VoxelMesher;
 import com.playsawdust.chipper.glow.model.Model;
 import com.playsawdust.chipper.glow.scene.Actor;
+import com.playsawdust.chipper.glow.scene.Camera;
 import com.playsawdust.chipper.glow.scene.CollisionVolume;
 import com.playsawdust.chipper.glow.voxel.MeshableVoxel;
 import com.playsawdust.chipper.glow.voxel.VoxelPatch;
@@ -19,10 +22,11 @@ import com.playsawdust.chipper.glow.voxel.VoxelPatch;
 public class Chunk implements Destroyable, Actor {
 	private Vector3d position = new Vector3d();;
 	private VoxelPatch patch;
-	private Model model;
-	private BakedModel bakedModel;
+	private ArrayList<Model> modelLods = new ArrayList<>();
+	private ArrayList<BakedModel> bakedLods = new ArrayList<>();
 	private boolean modelDirty = true;
 	private boolean bakeDirty = true;
+	private boolean empty = false;
 	
 	private Chunk() {}
 	
@@ -39,19 +43,83 @@ public class Chunk implements Destroyable, Actor {
 	}
 	
 	public void mesh() {
-		model = VoxelMesher.mesh(0, 0, 0, 32, 32, 32, patch::getShape, patch::getMaterial);
+		modelLods.clear();
+		if (isEmpty()) {
+			modelDirty = false;
+			empty = true;
+			return;
+		} else {
+			empty = false;
+		}
+		
+		boolean allLossless = true;
+		
+		Model model = VoxelMesher.mesh(0, 0, 0, 32, 32, 32, patch::getShape, patch::getMaterial, 1);
+		modelLods.add(model);
+		
+		VoxelPatch lod = patch.getLoD();
+		allLossless &= lod.isLossless();
+		Model lodModel = VoxelMesher.mesh(0,0,0,16,16,16, lod::getShape, lod::getMaterial, 2);
+		if (lodModel.isEmpty()) {
+			modelDirty = false;
+			return;
+		} else {
+			if (allLossless) modelLods.clear();
+			modelLods.add(lodModel);
+		}
+		
+		lod = lod.getLoD();
+		allLossless &= lod.isLossless();
+		lodModel = VoxelMesher.mesh(0,0,0,8,8,8, lod::getShape, lod::getMaterial, 4);
+		if (lodModel.isEmpty()) {
+			modelDirty = false;
+			return;
+		} else {
+			if (allLossless) modelLods.clear();
+			modelLods.add(lodModel);
+		}
+		
+		lod = lod.getLoD();
+		allLossless &= lod.isLossless();
+		lodModel = VoxelMesher.mesh(0,0,0,4,4,4, lod::getShape, lod::getMaterial, 8);
+		if (lodModel.isEmpty()) {
+			modelDirty = false;
+			return;
+		} else {
+			if (allLossless) modelLods.clear();
+			modelLods.add(lodModel);
+		}
+		
+		lod = lod.getLoD();
+		allLossless &= lod.isLossless();
+		lodModel = VoxelMesher.mesh(0,0,0,2,2,2, lod::getShape, lod::getMaterial, 16);
+		if (lodModel.isEmpty()) {
+			modelDirty = false;
+			return;
+		} else {
+			if (allLossless) modelLods.clear();
+			modelLods.add(lodModel);
+		}
+		
 		modelDirty = false;
 	}
 	
 	public void bake(RenderScheduler scheduler) {
-		if (model==null) mesh();
-		if (bakedModel!=null) bakedModel.destroy();
-		bakedModel = scheduler.bake(model);
+		if (modelDirty) mesh();
+		
+		if (empty) {
+			bakeDirty = false;
+			return;
+		}
+		
+		for(BakedModel m : bakedLods) m.destroy();
+		bakedLods.clear();
+		for(Model m : modelLods) {
+			bakedLods.add(scheduler.bake(m));
+		}
+		modelLods.clear();
+		modelDirty = true;
 		bakeDirty = false;
-	}
-	
-	public Model getModel() {
-		return model;
 	}
 	
 	/** Gets block from chunk-local coords */
@@ -87,11 +155,9 @@ public class Chunk implements Destroyable, Actor {
 	
 	@Override
 	public void destroy() {
-		if (bakedModel!=null) {
-			bakedModel.destroy();
-			bakedModel = null;
-			bakeDirty = true;
-		}
+		for(BakedModel m : bakedLods) m.destroy();
+		bakedLods.clear();
+		bakeDirty = true;
 	}
 
 	@Override
@@ -109,8 +175,15 @@ public class Chunk implements Destroyable, Actor {
 	}
 
 	@Override
-	public @Nullable BakedModel getRenderObject() {
-		return bakedModel;
+	public @Nullable BakedModel getRenderObject(Camera camera) {
+		if (bakedLods.size()==0) return null;
+		
+		int lod = (int)(camera.getPosition(null).distance(position)/110);
+		if (lod>=bakedLods.size()) lod = bakedLods.size()-1;
+		if (lod<0) lod=0;
+		//int lod = (int)(chunk.getPosition(null).distanceSquared(0, 0, 0)/150_000);
+		
+		return bakedLods.get(lod);
 	}
 
 	@Override
@@ -128,6 +201,14 @@ public class Chunk implements Destroyable, Actor {
 		//no.
 	}
 	
+	public boolean isEmpty() {
+		int[] patchData = patch.getData();
+		for(int i=0; i<patchData.length; i++) {
+			if (patchData[i]!=0) return false;
+		}
+		
+		return true;
+	}
 	
 	public static Chunk create() {
 		Chunk result = new Chunk();

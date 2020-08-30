@@ -10,13 +10,14 @@ import org.joml.Vector3d;
 import org.joml.Vector3dc;
 import org.joml.Vector3i;
 
+import com.playsawdust.chipper.glow.RenderScheduler;
 import com.playsawdust.chipper.glow.gl.shader.Destroyable;
 import com.playsawdust.chipper.glow.voxel.VoxelShape;
 
 public class ChunkManager implements Destroyable {
 	private static final int maxRenderDist = 32; //Just over 2GiB used for chunk management at 2,197,000 bytes
 	
-	private int renderDist = 5;
+	private int renderDist = 12;
 	private int mapSize = renderDist * 2 + 1;
 	
 	private Chunk[] chunks = new Chunk[mapSize * mapSize * mapSize];
@@ -104,6 +105,19 @@ public class ChunkManager implements Destroyable {
 		Block block = chunk.getBlock(x%32, y%32, z%32);
 		if (block==null) return VoxelShape.EMPTY;
 		return block.getShape();
+	}
+	
+	public void setBlock(int x, int y, int z, Block block, RenderScheduler scheduler) {
+		int chunkX = x / 32;
+		int chunkY = y / 32;
+		int chunkZ = z / 32;
+		int ofs = chunkCoordOfs(chunkX, chunkY, chunkZ);
+		if (ofs==-1) return;
+		Chunk chunk = chunks[ofs];
+		if (chunk==null) return;
+		chunk.setBlock(x%32, y%32, z%32, block);
+		chunk.mesh();
+		chunk.bake(scheduler);
 	}
 	
 	public Comparator<Vector3i> getCenterComparator() {

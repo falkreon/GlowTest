@@ -1,16 +1,11 @@
 package blue.endless.glow;
 
-import java.awt.Image;
 import java.awt.image.BufferedImage;
 import java.io.File;
 import java.io.FileInputStream;
-import java.io.FileNotFoundException;
-import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
-import java.util.ArrayDeque;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.List;
 
 import javax.imageio.ImageIO;
@@ -19,7 +14,6 @@ import org.joml.Matrix3d;
 import org.joml.Matrix4d;
 import org.joml.Vector2d;
 import org.joml.Vector3d;
-import org.joml.Vector3dc;
 import org.joml.Vector3i;
 import org.lwjgl.glfw.GLFW;
 import org.lwjgl.opengl.GL;
@@ -35,20 +29,19 @@ import com.playsawdust.chipper.glow.gl.shader.ShaderError;
 import com.playsawdust.chipper.glow.gl.shader.ShaderIO;
 import com.playsawdust.chipper.glow.gl.shader.ShaderProgram;
 import com.playsawdust.chipper.glow.mesher.PlatonicSolidMesher;
-import com.playsawdust.chipper.glow.mesher.VoxelMesher;
 import com.playsawdust.chipper.glow.gl.BakedModel;
 import com.playsawdust.chipper.glow.gl.Texture;
 import com.playsawdust.chipper.glow.model.Material;
 import com.playsawdust.chipper.glow.model.MaterialAttribute;
+import com.playsawdust.chipper.glow.model.Mesh;
 import com.playsawdust.chipper.glow.model.Model;
+import com.playsawdust.chipper.glow.model.io.BBModelLoader;
 import com.playsawdust.chipper.glow.pass.MeshPass;
 import com.playsawdust.chipper.glow.scene.Collision;
 import com.playsawdust.chipper.glow.scene.CollisionResult;
 import com.playsawdust.chipper.glow.scene.Light;
 import com.playsawdust.chipper.glow.scene.MeshActor;
 import com.playsawdust.chipper.glow.scene.Scene;
-import com.playsawdust.chipper.glow.voxel.MeshableVoxel;
-import com.playsawdust.chipper.glow.voxel.VoxelPatch;
 import com.playsawdust.chipper.glow.voxel.VoxelShape;
 
 public class GlowTest {
@@ -69,6 +62,42 @@ public class GlowTest {
 	private static int mouseX = 0;
 	private static int mouseY = 0;
 	private static boolean grab = false;
+	
+	
+	
+	
+	private static final Material.Generic MATERIAL_STONE = new Material.Generic()
+			.with(MaterialAttribute.DIFFUSE_COLOR, new Vector3d(1,1,1))
+			.with(MaterialAttribute.SPECULARITY, 0.01)
+			.with(MaterialAttribute.DIFFUSE_TEXTURE_ID, "stoneDiffuse")
+			.with(MaterialAttribute.EMISSIVITY, 0.0);
+	
+	private static final Material.Generic MATERIAL_GRASS = new Material.Generic()
+			.with(MaterialAttribute.DIFFUSE_COLOR, new Vector3d(1,1,1))
+			.with(MaterialAttribute.SPECULARITY, 0.01)
+			.with(MaterialAttribute.DIFFUSE_TEXTURE_ID, "grassDiffuse")
+			.with(MaterialAttribute.EMISSIVITY, 0.0);
+	
+	private static final Material.Generic MATERIAL_ORANGE = new Material.Generic()
+			.with(MaterialAttribute.DIFFUSE_COLOR, new Vector3d(1,1,1))
+			.with(MaterialAttribute.SPECULARITY, 0.01)
+			.with(MaterialAttribute.DIFFUSE_TEXTURE_ID, "orangeDiffuse")
+			.with(MaterialAttribute.EMISSIVITY, 0.0);
+	
+	private static final Block BLOCK_STONE = new Block()
+			.setShape(VoxelShape.CUBE)
+			.setMaterial(MATERIAL_STONE);
+	
+	private static final Block BLOCK_GRASS = new Block()
+			.setShape(VoxelShape.CUBE)
+			.setMaterial(MATERIAL_GRASS);
+	
+	private static final Block BLOCK_ORANGE = new Block()
+			.setShape(VoxelShape.CUBE)
+			.setMaterial(MATERIAL_ORANGE);
+	
+	
+	
 	
 	public static void main(String... args) {
 		
@@ -99,11 +128,22 @@ public class GlowTest {
 		}
 		
 		
+		try {
+			BBModelLoader.load(new FileInputStream(new File("shrek.bbmodel")));
+			
+		} catch (IOException ex) {
+			ex.printStackTrace();
+		}
+		
+		
 		//VoxelPatch patch = generate();
 		//Model patchModel = VoxelMesher.mesh(0, 0, 0, PATCH_SIZE, 64, PATCH_SIZE, patch::getShape, patch::getMaterial);
 		
 		double lookTargetSize = 1 + 1/32.0;
-		Model lookTarget = new Model(PlatonicSolidMesher.meshCube(-lookTargetSize/2, -lookTargetSize/2, -lookTargetSize/2, lookTargetSize, lookTargetSize, lookTargetSize));
+		Mesh lookTargetBase = PlatonicSolidMesher.meshCube(-lookTargetSize/2, -lookTargetSize/2, -0.7, lookTargetSize, lookTargetSize, 0.2);
+		Mesh lookTargetSpike = PlatonicSolidMesher.meshCube(-0.2, -0.2, -1.2, 0.4, 0.4, 0.4);
+		lookTargetBase.combineWith(lookTargetSpike);
+		Model lookTarget = new Model(lookTargetBase);
 		
 		//Save the patch down to disk - kind of slow!
 		/*
@@ -120,6 +160,8 @@ public class GlowTest {
 		movementControls.mapWASD();
 		movementControls.map("grab", GLFW.GLFW_KEY_TAB);
 		movementControls.map("run", GLFW.GLFW_KEY_LEFT_SHIFT);
+		movementControls.mapMouse("punch", GLFW.GLFW_MOUSE_BUTTON_LEFT);
+		movementControls.mapMouse("activate", GLFW.GLFW_MOUSE_BUTTON_RIGHT);
 		
 		/* Start GL, spawn up a window, load and compile the ShaderProgram, and attach it to the solid MeshPass. */
 		
@@ -144,6 +186,10 @@ public class GlowTest {
 			mouseY = (int)y;
 		});
 		
+		GLFW.glfwSetMouseButtonCallback(window.handle(), (hWin, button, action, mods)->{
+			movementControls.handleMouse(button, action, mods);
+		});
+		
 		GLFW.glfwMakeContextCurrent(window.handle());
 		
 		GL.createCapabilities();
@@ -166,7 +212,6 @@ public class GlowTest {
 		//BakedModel bakedText = scheduler.bake(textModel);
 		
 		/* Bake Models into BakedModels */
-		//BakedModel bakedPatch = scheduler.bake(patchModel);
 		
 		BufferedImage none = new BufferedImage(1, 1, BufferedImage.TYPE_INT_ARGB);
 		none.setRGB(0, 0, 0xFF_FFFFFF);
@@ -185,42 +230,13 @@ public class GlowTest {
 		
 		Scene scene = new Scene();
 		
-		//MeshActor patchActor = new MeshActor();
-		//patchActor.setRenderModel(bakedPatch);
-		//scene.addActor(patchActor);
-		
 		ChunkManager chunkManager = new ChunkManager();
-		//chunkManager.pan(5, 5, 5);
+		
 		ArrayList<Vector3i> pendingChunkList = new ArrayList<>();
 		chunkManager.scheduleAll(pendingChunkList);
 		
-		//System.out.println("Pending chunks: "+pendingChunks);
-		/*
-		int count = pendingChunkList.size();
-		for(int i=0; i<count; i++) {
-			Vector3i chunkPos = pendingChunkList.remove(0);
-			if (chunkPos.x<0 || chunkPos.y<0 || chunkPos.z<0) continue; //Skip negative positions, this is a quick and dirty game
-			Chunk chunk = Chunk.create();
-			chunk.setPosition(new Vector3d(chunkPos.x*32.0, chunkPos.y*32.0, chunkPos.z*32.0));
-			//System.out.println("Added chunk at "+chunk.getPosition(null));
-			generateInto(chunk);
-			chunkManager.set(chunkPos.x, chunkPos.y, chunkPos.z, chunk);
-			chunk.mesh();
-			chunk.bake(scheduler);
-			scene.addActor(chunk);
-		}*/
-		
-		
 		BakedModel bakedLookTarget = scheduler.bake(lookTarget);
 		
-		/*
-		ArrayList<MeshActor> targetLineActors = new ArrayList<>();
-		for(int i=0; i<15; i++) {
-			MeshActor actor = new MeshActor();
-			actor.setRenderModel(bakedLookTarget);
-			scene.addActor(actor);
-			targetLineActors.add(actor);
-		}*/
 		MeshActor lookTargetActor = new MeshActor();
 		lookTargetActor.setRenderModel(bakedLookTarget);
 		scene.addActor(lookTargetActor);
@@ -331,9 +347,40 @@ public class GlowTest {
 					
 					//lookTargetActor.setPosition(collision.getHitLocation());
 					lookTargetActor.setPosition(collision.getVoxelCenter(null));
+					
+					Vector3d hitNormal = collision.getHitNormal();
+					lookTargetActor.lookAlong(hitNormal.x, hitNormal.y, hitNormal.z);
+					/*
+					if (hitNormal.y==1) {
+						lookTargetActor.setOrientation(new Matrix3d().setLookAlong(0, 1, 0, 0, 0, -1));
+					} else if (hitNormal.y==-1) {
+						lookTargetActor.setOrientation(new Matrix3d().setLookAlong(0,-1, 0, 0, 0, 1));
+					} else if (hitNormal.x==1) {
+						lookTargetActor.setOrientation(new Matrix3d().setLookAlong(1, 0, 0, 0, -1, 0));
+					} else if (hitNormal.x==-1) {
+						lookTargetActor.setOrientation(new Matrix3d().setLookAlong(-1, 0, 0, 0, -1, 0));
+					} else {
+						lookTargetActor.setOrientation(new Matrix3d().setLookAlong(hitNormal.x, hitNormal.y, hitNormal.z, 0, 1, 0));
+					}*/
 					lookTargetActor.setRenderModel(bakedLookTarget);
 				} else {
 					lookTargetActor.setRenderModel(null);
+				}
+				
+				if (movementControls.isActive("punch")) {
+					movementControls.lock("punch");
+					if (lookedAt!=null) {
+						Vector3d voxelCenter = new Vector3d();
+						collision.getVoxelCenter(voxelCenter);
+						chunkManager.setBlock((int) voxelCenter.x, (int) voxelCenter.y, (int) voxelCenter.z, Block.NOTHING, scheduler);
+					}
+				} else if (movementControls.isActive("activate")) {
+					movementControls.lock("activate");
+					if (lookedAt!=null) {
+						Vector3d voxelCenter = new Vector3d();
+						collision.getVoxelCenter(voxelCenter).add(collision.getHitNormal());
+						chunkManager.setBlock((int) voxelCenter.x, (int) voxelCenter.y, (int) voxelCenter.z, BLOCK_ORANGE, scheduler);
+					}
 				}
 				//lookVec.mul(5);
 				//lookVec.add(scene.getCamera().getPosition(null));
@@ -346,7 +393,12 @@ public class GlowTest {
 			
 			
 			GLFW.glfwPollEvents();
-			if (!pendingChunkList.isEmpty()) bakeOne(pendingChunkList, chunkManager, scheduler, scene);
+			if (!pendingChunkList.isEmpty()) {
+				for(int i=0; i<2; i++) {
+					if (pendingChunkList.isEmpty()) break;
+					bakeOne(pendingChunkList, chunkManager, scheduler, scene);
+				}
+			}
 		}
 		
 		chunkManager.destroy();
@@ -356,25 +408,7 @@ public class GlowTest {
 	}
 	
 	
-	private static final Material.Generic MATERIAL_STONE = new Material.Generic()
-			.with(MaterialAttribute.DIFFUSE_COLOR, new Vector3d(1,1,1))
-			.with(MaterialAttribute.SPECULARITY, 0.01)
-			.with(MaterialAttribute.DIFFUSE_TEXTURE_ID, "stoneDiffuse")
-			.with(MaterialAttribute.EMISSIVITY, 0.0);
 	
-	private static final Material.Generic MATERIAL_GRASS = new Material.Generic()
-			.with(MaterialAttribute.DIFFUSE_COLOR, new Vector3d(1,1,1))
-			.with(MaterialAttribute.SPECULARITY, 0.01)
-			.with(MaterialAttribute.DIFFUSE_TEXTURE_ID, "grassDiffuse")
-			.with(MaterialAttribute.EMISSIVITY, 0.0);
-	
-	private static final Block BLOCK_STONE = new Block()
-			.setShape(VoxelShape.CUBE)
-			.setMaterial(MATERIAL_STONE);
-	
-	private static final Block BLOCK_GRASS = new Block()
-			.setShape(VoxelShape.CUBE)
-			.setMaterial(MATERIAL_GRASS);
 	
 	/*
 	private static VoxelPatch generate() {
@@ -429,6 +463,8 @@ public class GlowTest {
 		chunk.setBlock(0, 0, 0, BLOCK_GRASS);
 		chunk.setBlock(0, 0, 0, Block.NOTHING);
 		
+		if (chunk.getY()>128) return;
+		
 		//TODO: We could accelerate this considerably by intentionally setting the patch palette and then filling in integers directly
 		for(int z=0; z<32; z++) {
 			for(int x=0; x<32; x++) {
@@ -436,11 +472,20 @@ public class GlowTest {
 				int wz = z+chunk.getZ();
 				int wy = chunk.getY();
 				
-				double val = STBPerlin.stb_perlin_ridge_noise3(wx*0.005f, 0, wz*0.005f, 2.0f, 0.5f, 1.0f, 3) * 128.0 + 8.0;
+				int terrainHeight = (int) ( STBPerlin.stb_perlin_ridge_noise3(wx*0.003f, 0, wz*0.003f, 2.0f, 0.5f, 1.0f, 3) * 128.0 + 8.0 );
+				
+				Block surface = (terrainHeight>64) ? BLOCK_STONE : BLOCK_GRASS;
+				Block interior = BLOCK_STONE;
 				
 				for(int y=0; y<32; y++) {
-					Block mountainBlock = (wy+y>64) ? BLOCK_STONE : BLOCK_GRASS;
-					if (wy+y<=val) chunk.setBlock(x, y, z, mountainBlock);
+					if (wy+y>terrainHeight) break;
+					
+					
+					
+					Block cur = (wy+y<terrainHeight-32) ? interior : surface;
+					
+					//Block mountainBlock = (wy+y>64) ? BLOCK_STONE : BLOCK_GRASS;
+					if (wy+y<=terrainHeight) chunk.setBlock(x, y, z, cur);
 				}
 				
 				//TODO: Check the sky!
@@ -450,15 +495,29 @@ public class GlowTest {
 	}
 	
 	private static void bakeOne(List<Vector3i> pendingChunkList, ChunkManager chunkManager, RenderScheduler scheduler, Scene scene) {
-		Vector3i chunkPos = pendingChunkList.remove(0);
-		if (chunkPos.x<0 || chunkPos.y<0 || chunkPos.z<0) return; //Skip negative positions, this is a quick and dirty game
-		Chunk chunk = Chunk.create();
-		chunk.setPosition(new Vector3d(chunkPos.x*32.0, chunkPos.y*32.0, chunkPos.z*32.0));
-		//System.out.println("Added chunk at "+chunk.getPosition(null));
-		generateInto(chunk);
-		chunkManager.set(chunkPos.x, chunkPos.y, chunkPos.z, chunk);
-		chunk.mesh();
-		chunk.bake(scheduler);
-		scene.addActor(chunk);
+		boolean allEmpty = true;
+		
+		while (allEmpty && !pendingChunkList.isEmpty()) {
+			Vector3i chunkPos = pendingChunkList.remove(0);
+			if (chunkPos.x<0 || chunkPos.y<0 || chunkPos.z<0) return; //Skip negative positions, this is a quick and dirty game
+			Chunk chunk = Chunk.create();
+			chunk.setPosition(new Vector3d(chunkPos.x*32.0, chunkPos.y*32.0, chunkPos.z*32.0));
+			//System.out.println("Added chunk at "+chunk.getPosition(null));
+			generateInto(chunk);
+			chunkManager.set(chunkPos.x, chunkPos.y, chunkPos.z, chunk);
+			if (chunk.isEmpty()) {
+				
+			} else {
+				allEmpty = false;
+				
+				//chunk.mesh();
+				
+				//int lod = (int)(chunk.getPosition(null).distanceSquared(0, 0, 0)/150_000);
+				//if (lod>4) lod=4;
+				//System.out.println("lod for "+chunk.getPosition(null)+" is "+lod);
+				chunk.bake(scheduler);
+				scene.addActor(chunk);
+			}
+		}
 	}
 }
