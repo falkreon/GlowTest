@@ -142,7 +142,7 @@ public class GlowTest {
 		double lookTargetSize = 1 + 1/32.0;
 		Mesh lookTargetBase = PlatonicSolidMesher.meshCube(-lookTargetSize/2, -lookTargetSize/2, -0.7, lookTargetSize, lookTargetSize, 0.2);
 		Mesh lookTargetSpike = PlatonicSolidMesher.meshCube(-0.2, -0.2, -1.2, 0.4, 0.4, 0.4);
-		lookTargetBase.combineWith(lookTargetSpike);
+		lookTargetBase.combineFrom(lookTargetSpike);
 		Model lookTarget = new Model(lookTargetBase);
 		
 		//Save the patch down to disk - kind of slow!
@@ -262,6 +262,8 @@ public class GlowTest {
 		Light sun = scene.getSun();
 		sun.setRadius(4096);
 		sun.setPosition(5*32, 5*32, 5*32);
+		
+		scene.getCamera().setPosition(32*4, 128, 32*4);
 		
 		while ( !GLFW.glfwWindowShouldClose(window.handle()) ) {
 			if (windowSizeDirty) {
