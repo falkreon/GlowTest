@@ -8,9 +8,6 @@ import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.List;
 
-import javax.imageio.ImageIO;
-
-import org.joml.Matrix3d;
 import org.joml.Matrix4d;
 import org.joml.Vector2d;
 import org.joml.Vector3d;
@@ -28,6 +25,8 @@ import com.playsawdust.chipper.glow.control.MouseLook;
 import com.playsawdust.chipper.glow.gl.shader.ShaderError;
 import com.playsawdust.chipper.glow.gl.shader.ShaderIO;
 import com.playsawdust.chipper.glow.gl.shader.ShaderProgram;
+import com.playsawdust.chipper.glow.image.ClientImage;
+import com.playsawdust.chipper.glow.image.io.PNGImageLoader;
 import com.playsawdust.chipper.glow.mesher.PlatonicSolidMesher;
 import com.playsawdust.chipper.glow.gl.BakedModel;
 import com.playsawdust.chipper.glow.gl.Texture;
@@ -35,6 +34,7 @@ import com.playsawdust.chipper.glow.model.Material;
 import com.playsawdust.chipper.glow.model.MaterialAttribute;
 import com.playsawdust.chipper.glow.model.Mesh;
 import com.playsawdust.chipper.glow.model.Model;
+import com.playsawdust.chipper.glow.model.boxanim.BoxModel;
 import com.playsawdust.chipper.glow.model.io.BBModelLoader;
 import com.playsawdust.chipper.glow.pass.MeshPass;
 import com.playsawdust.chipper.glow.scene.Collision;
@@ -45,9 +45,6 @@ import com.playsawdust.chipper.glow.scene.Scene;
 import com.playsawdust.chipper.glow.voxel.VoxelShape;
 
 public class GlowTest {
-	private static final int PATCH_SIZE = 128;
-	
-	
 	private static final double SPEED_FORWARD = 0.2;
 	private static final double SPEED_RUN = 0.6;
 	
@@ -101,8 +98,22 @@ public class GlowTest {
 	
 	public static void main(String... args) {
 		
+		
+		
 		/* Load up asset(s) */
-		BufferedImage MISSINGNO = new BufferedImage(256, 256, BufferedImage.TYPE_INT_ARGB);
+		ClientImage MISSINGNO = new ClientImage(256, 256);
+		for(int y=0; y<256; y++) {
+			for(int x=0; x<256; x++) {
+				int p = (x/32 + y/32) % 2;
+				
+				if (p==0) {
+					MISSINGNO.setPixel(x, y, 0xFF_000000);
+				} else {
+					MISSINGNO.setPixel(x, y, 0xFF_FF00FF);
+				}
+			}
+		}
+		/*BufferedImage MISSINGNO = new BufferedImage(256, 256, BufferedImage.TYPE_INT_ARGB);
 		for(int y=0; y<256; y++) {
 			for(int x=0; x<256; x++) {
 				int p = (x/32 + y/32) % 2;
@@ -113,24 +124,23 @@ public class GlowTest {
 					MISSINGNO.setRGB(x, y, 0xFF_FF00FF);
 				}
 			}
-		}
+		}*/
 		
-		BufferedImage stoneImage = MISSINGNO;
-		BufferedImage orangeImage = MISSINGNO;
-		BufferedImage grassImage = MISSINGNO;
+		ClientImage stoneImage = MISSINGNO;
+		ClientImage orangeImage = MISSINGNO;
+		ClientImage grassImage = MISSINGNO;
 		try {
-			stoneImage = ImageIO.read(GlowTest.class.getClassLoader().getResourceAsStream("textures/stone.png"));
-			grassImage = ImageIO.read(GlowTest.class.getClassLoader().getResourceAsStream("textures/grass.png"));
-			orangeImage = ImageIO.read(GlowTest.class.getClassLoader().getResourceAsStream("textures/block_face_orange.png"));
-			
+			stoneImage = PNGImageLoader.load(GlowTest.class.getClassLoader().getResourceAsStream("textures/stone.png"));
+			grassImage= PNGImageLoader.load(GlowTest.class.getClassLoader().getResourceAsStream("textures/grass.png"));
+			orangeImage = PNGImageLoader.load(GlowTest.class.getClassLoader().getResourceAsStream("textures/block_face_orange.png"));
 		} catch (IOException | IllegalArgumentException e) {
 			e.printStackTrace();
 		}
 		
-		
+		Model meshedBoxModel = new Model(); //Dummy
 		try {
-			BBModelLoader.load(new FileInputStream(new File("shrek.bbmodel")));
-			
+			BoxModel boxModel = BBModelLoader.load(new FileInputStream(new File("shrek.bbmodel")));
+			meshedBoxModel = boxModel.createModel(null);
 		} catch (IOException ex) {
 			ex.printStackTrace();
 		}
@@ -220,6 +230,7 @@ public class GlowTest {
 		
 		Texture orangeTex = Texture.of(orangeImage);
 		scheduler.registerTexture("orangeDiffuse", orangeTex);
+		//Texture tex = Texture.of(stoneImage);
 		Texture tex = Texture.of(stoneImage);
 		scheduler.registerTexture("stoneDiffuse", tex);
 		Texture grassTex = Texture.of(grassImage);
@@ -240,6 +251,11 @@ public class GlowTest {
 		MeshActor lookTargetActor = new MeshActor();
 		lookTargetActor.setRenderModel(bakedLookTarget);
 		scene.addActor(lookTargetActor);
+		
+		MeshActor loadedModel = new MeshActor();
+		loadedModel.setPosition(40.5, 91, 40.5);
+		loadedModel.setRenderModel(scheduler.bake(meshedBoxModel));
+		scene.addActor(loadedModel);
 		
 		/* Set the clear color, set global GL state, and start the render loop */
 		GL11.glClearColor(0.39f, 0.74f, 1.0f, 0.0f);
