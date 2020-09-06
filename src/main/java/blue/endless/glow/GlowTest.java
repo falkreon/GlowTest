@@ -173,6 +173,26 @@ public class GlowTest {
 		movementControls.mapMouse("punch", GLFW.GLFW_MOUSE_BUTTON_LEFT);
 		movementControls.mapMouse("activate", GLFW.GLFW_MOUSE_BUTTON_RIGHT);
 		
+		ControlSet testControls = new ControlSet();
+		
+		movementControls.map("testEnable", GLFW.GLFW_KEY_E).onPress().register(()->{
+			System.out.println("Disabling test");
+			testControls.setEnabled(false);
+		});
+		
+		movementControls.map("testDisable", GLFW.GLFW_KEY_R).onPress().register(()->{
+			System.out.println("Enabling test");
+			testControls.setEnabled(true);
+		});
+		
+		testControls.map("test", GLFW.GLFW_KEY_Q).onPress().register(()->{
+			System.out.println("TestPress");
+		});
+		testControls.getButton("test").onRelease().register(()->{
+			System.out.println("TestRelease");
+		});
+		
+		
 		/* Start GL, spawn up a window, load and compile the ShaderProgram, and attach it to the solid MeshPass. */
 		
 		Window.initGLFW();
@@ -183,6 +203,8 @@ public class GlowTest {
 			if ( key == GLFW.GLFW_KEY_ESCAPE && action == GLFW.GLFW_RELEASE )
 				GLFW.glfwSetWindowShouldClose(window.handle(), true);
 			movementControls.handleKey(key, scancode, action, mods);
+			
+			testControls.handleKey(key, scancode, action, mods);
 		});
 		
 		GLFW.glfwSetFramebufferSizeCallback(window.handle(), (hWin, width, height)->{
