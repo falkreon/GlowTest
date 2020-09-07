@@ -22,10 +22,15 @@ import com.playsawdust.chipper.glow.RenderScheduler;
 import com.playsawdust.chipper.glow.Window;
 import com.playsawdust.chipper.glow.control.ControlSet;
 import com.playsawdust.chipper.glow.control.MouseLook;
+import com.playsawdust.chipper.glow.event.FixedTimestep;
+import com.playsawdust.chipper.glow.event.VariableTimestep;
 import com.playsawdust.chipper.glow.gl.shader.ShaderError;
 import com.playsawdust.chipper.glow.gl.shader.ShaderIO;
 import com.playsawdust.chipper.glow.gl.shader.ShaderProgram;
+import com.playsawdust.chipper.glow.image.BlendMode;
 import com.playsawdust.chipper.glow.image.ClientImage;
+import com.playsawdust.chipper.glow.image.EmergencyBitmapFont;
+import com.playsawdust.chipper.glow.image.ImageEditor;
 import com.playsawdust.chipper.glow.image.io.PNGImageLoader;
 import com.playsawdust.chipper.glow.mesher.PlatonicSolidMesher;
 import com.playsawdust.chipper.glow.gl.BakedModel;
@@ -133,9 +138,53 @@ public class GlowTest {
 			stoneImage = PNGImageLoader.load(GlowTest.class.getClassLoader().getResourceAsStream("textures/stone.png"));
 			grassImage= PNGImageLoader.load(GlowTest.class.getClassLoader().getResourceAsStream("textures/grass.png"));
 			orangeImage = PNGImageLoader.load(GlowTest.class.getClassLoader().getResourceAsStream("textures/block_face_orange.png"));
+			
+			/*//Test emergency font
+			EmergencyBitmapFont.paint(orangeImage, 3, 3, "Sphynx of", 0xFF_000000);
+			EmergencyBitmapFont.paint(orangeImage, 3, 9, "black quar", 0xFF_000000);
+			EmergencyBitmapFont.paint(orangeImage, 3, 15, "tz hear my", 0xFF_000000);
+			EmergencyBitmapFont.paint(orangeImage, 3, 21, "vow!", 0xFF_000000);
+			*/
+			
+			/*
+			//Build emergency font bitmap
+			ClientImage emergencyFontImage = PNGImageLoader.load(new FileInputStream("emergency_font.png"));
+			
+			System.out.print("{ ");
+			for (int i=0; i<94; i++) {
+				int tileY = (i / 10) * 6;
+				int tileX = (i % 10) * 6;
+				
+				int tileValue = 0;
+				for(int y=0; y<5; y++) {
+					int lineValue = 0;
+					for(int x=0; x<5; x++) {
+						int col = emergencyFontImage.getPixel(tileX + x, tileY + y);
+						if ((col & 0xFF_000000) != 0) {
+							lineValue |= 1;
+						}
+						lineValue = lineValue << 1;
+					}
+					tileValue |= lineValue << y*5;
+				}
+				System.out.print("0x"+Integer.toHexString(tileValue)+", ");
+			}
+			System.out.println("};");*/
+			
+			
+			
 		} catch (IOException | IllegalArgumentException e) {
 			e.printStackTrace();
 		}
+		
+		/*ClientImage testImage = new ClientImage(64, 64);
+		ImageEditor editor = ImageEditor.edit(testImage);
+		editor.drawTintImage(stoneImage, 0, 0, 0xFF_ff7600, 0.25, BlendMode.NORMAL, 1.0);
+		editor.drawImage(grassImage, 0, 0, BlendMode.OVERLAY, 0.6);
+		EmergencyBitmapFont.paint(testImage, 1, 1, '!', 0xFF_00FFFF);
+		
+		orangeImage = testImage;*/
+		
 		
 		Model meshedBoxModel = new Model(); //Dummy
 		try {
@@ -303,6 +352,11 @@ public class GlowTest {
 		
 		scene.getCamera().setPosition(32*4, 128, 32*4);
 		
+		FixedTimestep timestep = FixedTimestep.ofTPS(20);//, 25);
+		timestep.onTick().register((elapsed)->{
+			//System.out.println("Tick! ("+elapsed+")");
+		});
+		
 		while ( !GLFW.glfwWindowShouldClose(window.handle()) ) {
 			if (windowSizeDirty) {
 				GL11.glViewport(0, 0, windowWidth, windowHeight);
@@ -422,6 +476,8 @@ public class GlowTest {
 						chunkManager.setBlock((int) voxelCenter.x, (int) voxelCenter.y, (int) voxelCenter.z, BLOCK_ORANGE, scheduler);
 					}
 				}
+				
+				timestep.poll();
 				//lookVec.mul(5);
 				//lookVec.add(scene.getCamera().getPosition(null));
 				//lookTargetActor.setPosition(lookVec);
