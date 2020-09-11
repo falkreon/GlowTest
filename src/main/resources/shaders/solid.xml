@@ -107,4 +107,45 @@
 			</nodes>
 		</shader>
 	</pass>
+	<pass name="painter">
+		<shader stage="vertex">
+			<source language="GLSL">
+				<![CDATA[
+					#version 150
+					
+					uniform mat4 viewMatrix;
+					
+					attribute vec2 position;
+					attribute vec2 uv;
+					attribute vec4 color;
+					
+					varying vec2 v2f_uv;
+					varying vec4 v2f_color;
+					
+					void main() {
+						gl_Position = viewMatrix * vec4(position, 0, 1);
+						v2f_uv = uv;
+						v2f_color = color;
+					}
+				]]>
+			</source>
+		</shader>
+		<shader stage="fragment">
+			<source language="GLSL">
+				<![CDATA[
+					#version 150
+					
+					uniform sampler2D tex;
+					
+					varying vec2 v2f_uv;
+					varying vec4 v2f_color;
+					
+					void main() {
+						//gl_FragColor = vec4(v2f_uv, 0, 1);
+						gl_FragColor = texture(tex, v2f_uv) * v2f_color;
+					}
+				]]>
+			</source>
+		</shader>
+	</pass>
  </root>

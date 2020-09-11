@@ -6,6 +6,7 @@ import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 
 import org.joml.Matrix4d;
@@ -23,14 +24,10 @@ import com.playsawdust.chipper.glow.Window;
 import com.playsawdust.chipper.glow.control.ControlSet;
 import com.playsawdust.chipper.glow.control.MouseLook;
 import com.playsawdust.chipper.glow.event.FixedTimestep;
-import com.playsawdust.chipper.glow.event.VariableTimestep;
 import com.playsawdust.chipper.glow.gl.shader.ShaderError;
 import com.playsawdust.chipper.glow.gl.shader.ShaderIO;
 import com.playsawdust.chipper.glow.gl.shader.ShaderProgram;
-import com.playsawdust.chipper.glow.image.BlendMode;
 import com.playsawdust.chipper.glow.image.ClientImage;
-import com.playsawdust.chipper.glow.image.EmergencyBitmapFont;
-import com.playsawdust.chipper.glow.image.ImageEditor;
 import com.playsawdust.chipper.glow.image.io.PNGImageLoader;
 import com.playsawdust.chipper.glow.mesher.PlatonicSolidMesher;
 import com.playsawdust.chipper.glow.gl.BakedModel;
@@ -118,18 +115,6 @@ public class GlowTest {
 				}
 			}
 		}
-		/*BufferedImage MISSINGNO = new BufferedImage(256, 256, BufferedImage.TYPE_INT_ARGB);
-		for(int y=0; y<256; y++) {
-			for(int x=0; x<256; x++) {
-				int p = (x/32 + y/32) % 2;
-				
-				if (p==0) {
-					MISSINGNO.setRGB(x, y, 0xFF_000000);
-				} else {
-					MISSINGNO.setRGB(x, y, 0xFF_FF00FF);
-				}
-			}
-		}*/
 		
 		ClientImage stoneImage = MISSINGNO;
 		ClientImage orangeImage = MISSINGNO;
@@ -280,9 +265,10 @@ public class GlowTest {
 		
 		try {
 			InputStream shaderStream = GlowTest.class.getClassLoader().getResourceAsStream("shaders/solid.xml");
-			prog = ShaderIO.load(shaderStream);
-			MeshPass solidPass = (MeshPass) scheduler.getPass("solid");
-			solidPass.setShader(prog);
+			HashMap<String, ShaderIO.ShaderPass> programs = ShaderIO.load(shaderStream);
+			scheduler.attachShaders(programs);
+			//MeshPass solidPass = (MeshPass) scheduler.getPass("solid");
+			//solidPass.setShader(prog);
 		} catch (IOException ex) {
 			ex.printStackTrace();
 		} catch (ShaderError err) {
@@ -344,6 +330,8 @@ public class GlowTest {
 		windowHeight = (int) windowSize.y();
 		windowSizeDirty = true;
 		double SIXTY_DEGREES = 60.0 * (Math.PI/180.0);
+		
+		prog = ((MeshPass)scheduler.getPass("solid")).getProgram();
 		prog.bind();
 		
 		Light sun = scene.getSun();
@@ -355,6 +343,12 @@ public class GlowTest {
 		FixedTimestep timestep = FixedTimestep.ofTPS(20);//, 25);
 		timestep.onTick().register((elapsed)->{
 			//System.out.println("Tick! ("+elapsed+")");
+		});
+		
+		//scheduler.getPainter().setShaderProgram(prog);
+		scheduler.getPainter().setWindow(window);
+		scheduler.onPaint().register((painter)->{
+			painter.paintTexture(tex, 0, 0, 64, 64, 0, 0, 64, 64, 0xFF_FFFFFF);
 		});
 		
 		while ( !GLFW.glfwWindowShouldClose(window.handle()) ) {
