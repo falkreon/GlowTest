@@ -34,5 +34,6 @@ dependencies {
 	
 	compile lwjgl('glfw', 'openal', 'opengl', 'stb')
 	compile 'org.joml:joml:1.9.12';
-	
+	compile group: 'org.slf4j', name: 'slf4j-simple', version: '1.7.30'
+
 }
