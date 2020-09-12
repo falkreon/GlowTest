@@ -419,37 +419,10 @@ public class GlowTest {
 				CollisionResult collision = new CollisionResult();
 				Vector3d lookedAt = Collision.raycastVoxel(scene.getCamera().getPosition(null), lookVec, 100, chunkManager::getShape, collision, false);
 				if (lookedAt!=null) {
-					//List<Vector3dc> raySteps = collision.getSteps();
-					
-					//for(int i=0; i<targetLineActors.size(); i++) {
-						
-					//	if (raySteps.size()>i+1) {
-					//		MeshActor cur = targetLineActors.get(i);
-					//		cur.setRenderModel(bakedLookTarget);
-					//		cur.setPosition(raySteps.get(i+1));
-					//	} else {
-					//		targetLineActors.get(i).setRenderModel(null);
-					//	}
-					//}
-					
-					
-					//lookTargetActor.setPosition(collision.getHitLocation());
 					lookTargetActor.setPosition(collision.getVoxelCenter(null));
 					
 					Vector3d hitNormal = collision.getHitNormal();
 					lookTargetActor.lookAlong(hitNormal.x, hitNormal.y, hitNormal.z);
-					/*
-					if (hitNormal.y==1) {
-						lookTargetActor.setOrientation(new Matrix3d().setLookAlong(0, 1, 0, 0, 0, -1));
-					} else if (hitNormal.y==-1) {
-						lookTargetActor.setOrientation(new Matrix3d().setLookAlong(0,-1, 0, 0, 0, 1));
-					} else if (hitNormal.x==1) {
-						lookTargetActor.setOrientation(new Matrix3d().setLookAlong(1, 0, 0, 0, -1, 0));
-					} else if (hitNormal.x==-1) {
-						lookTargetActor.setOrientation(new Matrix3d().setLookAlong(-1, 0, 0, 0, -1, 0));
-					} else {
-						lookTargetActor.setOrientation(new Matrix3d().setLookAlong(hitNormal.x, hitNormal.y, hitNormal.z, 0, 1, 0));
-					}*/
 					lookTargetActor.setRenderModel(bakedLookTarget);
 				} else {
 					lookTargetActor.setRenderModel(null);
@@ -472,9 +445,6 @@ public class GlowTest {
 				}
 				
 				timestep.poll();
-				//lookVec.mul(5);
-				//lookVec.add(scene.getCamera().getPosition(null));
-				//lookTargetActor.setPosition(lookVec);
 			}
 			
 			scene.render(scheduler, prog);
@@ -491,10 +461,9 @@ public class GlowTest {
 			}
 		}
 		
-		chunkManager.destroy();
-		//bakedPatch.destroy();
-		tex.destroy();
-		prog.destroy();
+		chunkManager.free();
+		tex.free();
+		prog.free();
 	}
 	
 	

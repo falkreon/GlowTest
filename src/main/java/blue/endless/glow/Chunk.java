@@ -10,16 +10,17 @@ import org.joml.Vector3dc;
 
 import com.playsawdust.chipper.glow.RenderScheduler;
 import com.playsawdust.chipper.glow.gl.BakedModel;
-import com.playsawdust.chipper.glow.gl.shader.Destroyable;
+import com.playsawdust.chipper.glow.gl.OffheapResource;
 import com.playsawdust.chipper.glow.mesher.VoxelMesher;
 import com.playsawdust.chipper.glow.model.Model;
 import com.playsawdust.chipper.glow.scene.Actor;
 import com.playsawdust.chipper.glow.scene.Camera;
 import com.playsawdust.chipper.glow.scene.CollisionVolume;
+import com.playsawdust.chipper.glow.util.AbstractGPUResource;
 import com.playsawdust.chipper.glow.voxel.MeshableVoxel;
 import com.playsawdust.chipper.glow.voxel.VoxelPatch;
 
-public class Chunk implements Destroyable, Actor {
+public class Chunk extends AbstractGPUResource implements Actor {
 	private Vector3d position = new Vector3d();;
 	private VoxelPatch patch;
 	private ArrayList<Model> modelLods = new ArrayList<>();
@@ -112,7 +113,7 @@ public class Chunk implements Destroyable, Actor {
 			return;
 		}
 		
-		for(BakedModel m : bakedLods) m.destroy();
+		for(BakedModel m : bakedLods) m.free();
 		bakedLods.clear();
 		for(Model m : modelLods) {
 			bakedLods.add(scheduler.bake(m));
@@ -154,8 +155,8 @@ public class Chunk implements Destroyable, Actor {
 	
 	
 	@Override
-	public void destroy() {
-		for(BakedModel m : bakedLods) m.destroy();
+	public void _free() {
+		for(BakedModel m : bakedLods) m.free();
 		bakedLods.clear();
 		bakeDirty = true;
 	}

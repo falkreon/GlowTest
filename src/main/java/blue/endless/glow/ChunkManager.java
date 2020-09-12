@@ -1,9 +1,7 @@
 package blue.endless.glow;
 
 import java.util.Arrays;
-import java.util.Collection;
 import java.util.Comparator;
-import java.util.Deque;
 import java.util.List;
 
 import org.joml.Vector3d;
@@ -11,10 +9,10 @@ import org.joml.Vector3dc;
 import org.joml.Vector3i;
 
 import com.playsawdust.chipper.glow.RenderScheduler;
-import com.playsawdust.chipper.glow.gl.shader.Destroyable;
+import com.playsawdust.chipper.glow.util.AbstractGPUResource;
 import com.playsawdust.chipper.glow.voxel.VoxelShape;
 
-public class ChunkManager implements Destroyable {
+public class ChunkManager extends AbstractGPUResource {
 	private static final int maxRenderDist = 32; //Just over 2GiB used for chunk management at 2,197,000 bytes
 	
 	private int renderDist = 12;
@@ -126,10 +124,10 @@ public class ChunkManager implements Destroyable {
 	}
 	
 	@Override
-	public void destroy() {
+	public void _free() {
 		for(int i=0; i<chunks.length; i++) {
 			if (chunks[i] != null) {
-				chunks[i].destroy();
+				chunks[i].free();
 				chunks[i] = null;
 			}
 		}
