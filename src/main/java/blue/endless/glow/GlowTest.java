@@ -18,6 +18,8 @@ import org.lwjgl.opengl.GL;
 import org.lwjgl.opengl.GL11;
 import org.lwjgl.opengl.GL20;
 import org.lwjgl.stb.STBPerlin;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import com.playsawdust.chipper.glow.RenderScheduler;
 import com.playsawdust.chipper.glow.Window;
@@ -99,8 +101,8 @@ public class GlowTest {
 	
 	
 	public static void main(String... args) {
-		
-		
+		Logger log = LoggerFactory.getLogger(GlowTest.class);
+		log.debug("Test");
 		
 		/* Load up asset(s) */
 		ClientImage MISSINGNO = new ClientImage(256, 256);
