@@ -26,7 +26,7 @@ import com.playsawdust.chipper.glow.Window;
 import com.playsawdust.chipper.glow.control.ControlSet;
 import com.playsawdust.chipper.glow.control.MouseLook;
 import com.playsawdust.chipper.glow.event.FixedTimestep;
-import com.playsawdust.chipper.glow.gl.shader.ShaderError;
+import com.playsawdust.chipper.glow.gl.shader.ShaderException;
 import com.playsawdust.chipper.glow.gl.shader.ShaderIO;
 import com.playsawdust.chipper.glow.gl.shader.ShaderProgram;
 import com.playsawdust.chipper.glow.image.ClientImage;
@@ -57,11 +57,8 @@ public class GlowTest {
 	
 	private static final double SPEED_STRAFE = 0.15;
 	
-	private static boolean windowSizeDirty = false;
-	private static int windowWidth = 0;
-	private static int windowHeight = 0;
-	private static int mouseX = 0;
-	private static int mouseY = 0;
+	//private static int mouseX = 0;
+	//private static int mouseY = 0;
 	private static boolean grab = false;
 	
 	
@@ -126,13 +123,6 @@ public class GlowTest {
 			grassImage= PNGImageLoader.load(GlowTest.class.getClassLoader().getResourceAsStream("textures/grass.png"));
 			orangeImage = PNGImageLoader.load(GlowTest.class.getClassLoader().getResourceAsStream("textures/block_face_orange.png"));
 			
-			/*//Test emergency font
-			EmergencyBitmapFont.paint(orangeImage, 3, 3, "Sphynx of", 0xFF_000000);
-			EmergencyBitmapFont.paint(orangeImage, 3, 9, "black quar", 0xFF_000000);
-			EmergencyBitmapFont.paint(orangeImage, 3, 15, "tz hear my", 0xFF_000000);
-			EmergencyBitmapFont.paint(orangeImage, 3, 21, "vow!", 0xFF_000000);
-			*/
-			
 			/*
 			//Build emergency font bitmap
 			ClientImage emergencyFontImage = PNGImageLoader.load(new FileInputStream("emergency_font.png"));
@@ -164,15 +154,6 @@ public class GlowTest {
 			e.printStackTrace();
 		}
 		
-		/*ClientImage testImage = new ClientImage(64, 64);
-		ImageEditor editor = ImageEditor.edit(testImage);
-		editor.drawTintImage(stoneImage, 0, 0, 0xFF_ff7600, 0.25, BlendMode.NORMAL, 1.0);
-		editor.drawImage(grassImage, 0, 0, BlendMode.OVERLAY, 0.6);
-		EmergencyBitmapFont.paint(testImage, 1, 1, '!', 0xFF_00FFFF);
-		
-		orangeImage = testImage;*/
-		
-		
 		Model meshedBoxModel = new Model(); //Dummy
 		try {
 			BoxModel boxModel = BBModelLoader.load(new FileInputStream(new File("shrek.bbmodel")));
@@ -181,25 +162,11 @@ public class GlowTest {
 			ex.printStackTrace();
 		}
 		
-		
-		//VoxelPatch patch = generate();
-		//Model patchModel = VoxelMesher.mesh(0, 0, 0, PATCH_SIZE, 64, PATCH_SIZE, patch::getShape, patch::getMaterial);
-		
 		double lookTargetSize = 1 + 1/32.0;
 		Mesh lookTargetBase = PlatonicSolidMesher.meshCube(-lookTargetSize/2, -lookTargetSize/2, -0.7, lookTargetSize, lookTargetSize, 0.2);
 		Mesh lookTargetSpike = PlatonicSolidMesher.meshCube(-0.2, -0.2, -1.2, 0.4, 0.4, 0.4);
 		lookTargetBase.combineFrom(lookTargetSpike);
 		Model lookTarget = new Model(lookTargetBase);
-		
-		//Save the patch down to disk - kind of slow!
-		/*
-		try(FileOutputStream out = new FileOutputStream("model_save.obj")) {
-			OBJLoader.save(patchModel, out);
-		} catch (FileNotFoundException e1) {
-			e1.printStackTrace();
-		} catch (IOException e1) {
-			e1.printStackTrace();
-		}*/
 		
 		MouseLook mouseLook = new MouseLook();
 		ControlSet movementControls = new ControlSet();
@@ -231,11 +198,8 @@ public class GlowTest {
 		
 		/* Start GL, spawn up a window, load and compile the ShaderProgram, and attach it to the solid MeshPass. */
 		
-		Window.initGLFW();
-		
 		Window window = new Window(1024, 768, "Test");
-		
-		GLFW.glfwSetKeyCallback(window.handle(), (win, key, scancode, action, mods) -> {
+		window.onRawKey().register( (win, key, scancode, action, mods) -> {
 			if ( key == GLFW.GLFW_KEY_ESCAPE && action == GLFW.GLFW_RELEASE )
 				GLFW.glfwSetWindowShouldClose(window.handle(), true);
 			movementControls.handleKey(key, scancode, action, mods);
@@ -243,24 +207,34 @@ public class GlowTest {
 			testControls.handleKey(key, scancode, action, mods);
 		});
 		
+		/*
+		GLFW.glfwSetKeyCallback(window.handle(), (win, key, scancode, action, mods) -> {
+			if ( key == GLFW.GLFW_KEY_ESCAPE && action == GLFW.GLFW_RELEASE )
+				GLFW.glfwSetWindowShouldClose(window.handle(), true);
+			movementControls.handleKey(key, scancode, action, mods);
+			
+			testControls.handleKey(key, scancode, action, mods);
+		});*/
+		
+		/*
 		GLFW.glfwSetFramebufferSizeCallback(window.handle(), (hWin, width, height)->{
 			windowSizeDirty = true;
 			windowWidth = width;
 			windowHeight = height;
-		});
-		
+		});*/
+		/*
 		GLFW.glfwSetCursorPosCallback(window.handle(), (hWin, x, y)->{
 			mouseX = (int)x;
 			mouseY = (int)y;
-		});
+		});*/
 		
 		GLFW.glfwSetMouseButtonCallback(window.handle(), (hWin, button, action, mods)->{
 			movementControls.handleMouse(button, action, mods);
 		});
 		
-		GLFW.glfwMakeContextCurrent(window.handle());
+		//GLFW.glfwMakeContextCurrent(window.handle());
 		
-		GL.createCapabilities();
+		//GL.createCapabilities();
 		
 		ShaderProgram prog = null;
 		RenderScheduler scheduler = RenderScheduler.createDefaultScheduler();
@@ -273,7 +247,7 @@ public class GlowTest {
 			//solidPass.setShader(prog);
 		} catch (IOException ex) {
 			ex.printStackTrace();
-		} catch (ShaderError err) {
+		} catch (ShaderException err) {
 			System.out.println(err.getInfoLog());
 		}
 		
@@ -325,20 +299,16 @@ public class GlowTest {
 		
 		GL11.glEnable(GL11.GL_CULL_FACE);
 		
-		//Matrix4d projection = new Matrix4d();
-		Vector2d windowSize = new Vector2d();
-		window.getSize(windowSize);
-		windowWidth = (int) windowSize.x();
-		windowHeight = (int) windowSize.y();
-		windowSizeDirty = true;
 		double SIXTY_DEGREES = 60.0 * (Math.PI/180.0);
 		
+		//TODO: We should NOT NEED THIS!
 		prog = ((MeshPass)scheduler.getPass("solid")).getProgram();
-		prog.bind();
 		
 		Light sun = scene.getSun();
 		sun.setRadius(4096);
 		sun.setPosition(5*32, 5*32, 5*32);
+		
+		
 		
 		scene.getCamera().setPosition(32*4, 128, 32*4);
 		
@@ -347,19 +317,15 @@ public class GlowTest {
 			//System.out.println("Tick! ("+elapsed+")");
 		});
 		
-		//scheduler.getPainter().setShaderProgram(prog);
 		scheduler.getPainter().setWindow(window);
 		scheduler.onPaint().register((painter)->{
 			painter.paintTexture(tex, 0, 0, 64, 64, 0, 0, 64, 64, 0xFF_FFFFFF);
 		});
 		
 		while ( !GLFW.glfwWindowShouldClose(window.handle()) ) {
-			if (windowSizeDirty) {
-				GL11.glViewport(0, 0, windowWidth, windowHeight);
-				Matrix4d projection = new Matrix4d();
-				projection.setPerspective(SIXTY_DEGREES, windowWidth/(double)windowHeight, 0.01, 1000);
-				scene.setProjectionMatrix(projection);
-			}
+			Matrix4d projection = new Matrix4d();
+			projection.setPerspective(SIXTY_DEGREES, window.getWidth()/(double)window.getHeight(), 0.01, 1000);
+			scene.setProjectionMatrix(projection);
 			
 			if (movementControls.isActive("grab")) {
 				movementControls.lock("grab");
@@ -414,7 +380,7 @@ public class GlowTest {
 				}
 				scene.getCamera().setPosition(vectorSum.add(scene.getCamera().getPosition(null)));
 			
-				mouseLook.step(mouseX, mouseY, windowWidth, windowHeight);
+				mouseLook.step(window.getMouseX(), window.getMouseY(), window.getWidth(), window.getHeight());
 				scene.getCamera().setOrientation(mouseLook.getMatrix());
 				
 				Vector3d lookVec = mouseLook.getLookVector(null);
@@ -469,54 +435,6 @@ public class GlowTest {
 	}
 	
 	
-	
-	
-	/*
-	private static VoxelPatch generate() {
-		
-		VoxelPatch patch = new VoxelPatch();
-		patch.setSize(PATCH_SIZE, 64, PATCH_SIZE);
-		MeshableVoxel.SimpleMeshableVoxel AIR = new MeshableVoxel.SimpleMeshableVoxel();
-		AIR.setShape(VoxelShape.EMPTY);
-		Block STONE = new Block();
-		STONE.setShape(VoxelShape.CUBE);
-		STONE.setMaterial(MATERIAL_STONE);
-		MeshableVoxel.SimpleMeshableVoxel ORANGE = new MeshableVoxel.SimpleMeshableVoxel();
-		ORANGE.setShape(VoxelShape.CUBE);
-		ORANGE.setMaterial(new Material.Generic()
-			.with(MaterialAttribute.DIFFUSE_COLOR, new Vector3d(1,1,1))
-			.with(MaterialAttribute.SPECULARITY, 0.8)
-			.with(MaterialAttribute.DIFFUSE_TEXTURE_ID, "orangeDiffuse")
-			.with(MaterialAttribute.EMISSIVITY, 0.0)
-			);
-		
-		//Add the voxels to the patch's palette
-		patch.setVoxel(0, 0, 0, AIR, true);
-		patch.setVoxel(0, 0, 0, STONE, true);
-		patch.setVoxel(0, 0, 0, ORANGE, true);
-		
-		double scroll = Math.random()*16.0;
-		for(int z=0; z<PATCH_SIZE; z++) {
-			for(int x=0; x<PATCH_SIZE; x++) {
-				double materialDensity = Math.sin(x/13.0) + Math.sin(z/17.0);
-				//materialDensity = 2;
-				
-				double dx = 8-x; double dz = 8-z;
-				double height = Math.sin(Math.sqrt(dx*dx + dz*dz)/12.0)*4+4;
-				double sin = Math.sin((x+scroll)/6.0)*3.0;
-				if (sin<0) sin=0;
-				for(int y=0; y<Math.min(height+sin+1, 64); y++) {
-					MeshableVoxel voxel = (materialDensity>0) ? STONE : ORANGE;
-					
-					patch.setVoxel(x, y, z, voxel, false);
-				}
-			}
-		}
-		
-		return patch;
-	}*/
-	
-	
 	private static void generateInto(Chunk chunk) {
 		//Preload the palette
 		chunk.setBlock(0, 0, 0, Block.NOTHING);
@@ -541,16 +459,10 @@ public class GlowTest {
 				for(int y=0; y<32; y++) {
 					if (wy+y>terrainHeight) break;
 					
-					
-					
 					Block cur = (wy+y<terrainHeight-32) ? interior : surface;
 					
-					//Block mountainBlock = (wy+y>64) ? BLOCK_STONE : BLOCK_GRASS;
 					if (wy+y<=terrainHeight) chunk.setBlock(x, y, z, cur);
 				}
-				
-				//TODO: Check the sky!
-				//chunk.setBlock(x, 0, z, STONE);
 			}
 		}
 	}
@@ -563,7 +475,6 @@ public class GlowTest {
 			if (chunkPos.x<0 || chunkPos.y<0 || chunkPos.z<0) return; //Skip negative positions, this is a quick and dirty game
 			Chunk chunk = Chunk.create();
 			chunk.setPosition(new Vector3d(chunkPos.x*32.0, chunkPos.y*32.0, chunkPos.z*32.0));
-			//System.out.println("Added chunk at "+chunk.getPosition(null));
 			generateInto(chunk);
 			chunkManager.set(chunkPos.x, chunkPos.y, chunkPos.z, chunk);
 			if (chunk.isEmpty()) {
@@ -571,11 +482,6 @@ public class GlowTest {
 			} else {
 				allEmpty = false;
 				
-				//chunk.mesh();
-				
-				//int lod = (int)(chunk.getPosition(null).distanceSquared(0, 0, 0)/150_000);
-				//if (lod>4) lod=4;
-				//System.out.println("lod for "+chunk.getPosition(null)+" is "+lod);
 				chunk.bake(scheduler);
 				scene.addActor(chunk);
 			}
