@@ -1,6 +1,5 @@
 package blue.endless.glow;
 
-import java.awt.image.BufferedImage;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.IOException;
@@ -10,11 +9,9 @@ import java.util.HashMap;
 import java.util.List;
 
 import org.joml.Matrix4d;
-import org.joml.Vector2d;
 import org.joml.Vector3d;
 import org.joml.Vector3i;
 import org.lwjgl.glfw.GLFW;
-import org.lwjgl.opengl.GL;
 import org.lwjgl.opengl.GL11;
 import org.lwjgl.opengl.GL20;
 import org.lwjgl.stb.STBPerlin;
@@ -22,6 +19,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import com.playsawdust.chipper.glow.RenderScheduler;
+import com.playsawdust.chipper.glow.Screen;
 import com.playsawdust.chipper.glow.Window;
 import com.playsawdust.chipper.glow.control.ControlSet;
 import com.playsawdust.chipper.glow.control.MouseLook;
@@ -29,7 +27,9 @@ import com.playsawdust.chipper.glow.event.FixedTimestep;
 import com.playsawdust.chipper.glow.gl.shader.ShaderException;
 import com.playsawdust.chipper.glow.gl.shader.ShaderIO;
 import com.playsawdust.chipper.glow.gl.shader.ShaderProgram;
-import com.playsawdust.chipper.glow.image.ClientImage;
+import com.playsawdust.chipper.glow.image.BlendMode;
+import com.playsawdust.chipper.glow.image.ImageData;
+import com.playsawdust.chipper.glow.image.ImageEditor;
 import com.playsawdust.chipper.glow.image.io.PNGImageLoader;
 import com.playsawdust.chipper.glow.mesher.PlatonicSolidMesher;
 import com.playsawdust.chipper.glow.gl.BakedModel;
@@ -46,6 +46,9 @@ import com.playsawdust.chipper.glow.scene.CollisionResult;
 import com.playsawdust.chipper.glow.scene.Light;
 import com.playsawdust.chipper.glow.scene.MeshActor;
 import com.playsawdust.chipper.glow.scene.Scene;
+import com.playsawdust.chipper.glow.text.truetype.TTFLoader;
+import com.playsawdust.chipper.glow.text.VectorFont;
+import com.playsawdust.chipper.glow.text.raster.RasterFont;
 import com.playsawdust.chipper.glow.voxel.VoxelShape;
 
 public class GlowTest {
@@ -56,13 +59,6 @@ public class GlowTest {
 	private static final double SPEED_LIMIT_RUN = SPEED_RUN;
 	
 	private static final double SPEED_STRAFE = 0.15;
-	
-	//private static int mouseX = 0;
-	//private static int mouseY = 0;
-	private static boolean grab = false;
-	
-	
-	
 	
 	private static final Material.Generic MATERIAL_STONE = new Material.Generic()
 			.with(MaterialAttribute.DIFFUSE_COLOR, new Vector3d(1,1,1))
@@ -102,7 +98,7 @@ public class GlowTest {
 		log.debug("Test");
 		
 		/* Load up asset(s) */
-		ClientImage MISSINGNO = new ClientImage(256, 256);
+		ImageData MISSINGNO = new ImageData(256, 256);
 		for(int y=0; y<256; y++) {
 			for(int x=0; x<256; x++) {
 				int p = (x/32 + y/32) % 2;
@@ -115,39 +111,36 @@ public class GlowTest {
 			}
 		}
 		
-		ClientImage stoneImage = MISSINGNO;
-		ClientImage orangeImage = MISSINGNO;
-		ClientImage grassImage = MISSINGNO;
+		/* Start GL, spawn up a window, arrange controls */
+		Window window = new Window(1024, 768, "Test");
+		window.setVSync(false); //Let's just tear it up as fast as we can
+		
+		
+		/* load more assets */
+		ImageData stoneImage = MISSINGNO;
+		ImageData orangeImage = MISSINGNO;
+		ImageData grassImage = MISSINGNO;
 		try {
 			stoneImage = PNGImageLoader.load(GlowTest.class.getClassLoader().getResourceAsStream("textures/stone.png"));
+			
 			grassImage= PNGImageLoader.load(GlowTest.class.getClassLoader().getResourceAsStream("textures/grass.png"));
 			orangeImage = PNGImageLoader.load(GlowTest.class.getClassLoader().getResourceAsStream("textures/block_face_orange.png"));
 			
-			/*
-			//Build emergency font bitmap
-			ClientImage emergencyFontImage = PNGImageLoader.load(new FileInputStream("emergency_font.png"));
-			
-			System.out.print("{ ");
-			for (int i=0; i<94; i++) {
-				int tileY = (i / 10) * 6;
-				int tileX = (i % 10) * 6;
+			try {
+				System.out.println("Loading font...");
+				//Grab the Roboto font and turn it into a vector font
+				VectorFont font = TTFLoader.load(new FileInputStream("Roboto-Medium.ttf"));
+				Screen screen = window.getPrimaryScreen();
+				RasterFont data = font.toRasterFont(10.0, screen.getDPI(), 1.0, 0xFF_000000, 0xFF_000000, 0.0, 512, 1.0);
 				
-				int tileValue = 0;
-				for(int y=0; y<5; y++) {
-					int lineValue = 0;
-					for(int x=0; x<5; x++) {
-						int col = emergencyFontImage.getPixel(tileX + x, tileY + y);
-						if ((col & 0xFF_000000) != 0) {
-							lineValue |= 1;
-						}
-						lineValue = lineValue << 1;
-					}
-					tileValue |= lineValue << y*5;
-				}
-				System.out.print("0x"+Integer.toHexString(tileValue)+", ");
+				//Write the font into the stone texture
+				ImageEditor editor = ImageEditor.edit(stoneImage);
+				editor.drawString(data, "Sphinx of black quartz, hear my vow!", 10, 20, BlendMode.NORMAL, 1.0);
+				
+				System.out.println("Font loaded.");
+			} catch (IOException e) {
+				e.printStackTrace();
 			}
-			System.out.println("};");*/
-			
 			
 			
 		} catch (IOException | IllegalArgumentException e) {
@@ -155,18 +148,19 @@ public class GlowTest {
 		}
 		
 		Model meshedBoxModel = new Model(); //Dummy
-		try {
-			BoxModel boxModel = BBModelLoader.load(new FileInputStream(new File("shrek.bbmodel")));
-			meshedBoxModel = boxModel.createModel(null);
-		} catch (IOException ex) {
-			ex.printStackTrace();
-		}
+		//try {
+			//BoxModel boxModel = BBModelLoader.load(new FileInputStream(new File("shrek.bbmodel")));
+			//meshedBoxModel = boxModel.createModel(null);
+		//} catch (IOException ex) {
+		//	ex.printStackTrace();
+		//}
 		
 		double lookTargetSize = 1 + 1/32.0;
 		Mesh lookTargetBase = PlatonicSolidMesher.meshCube(-lookTargetSize/2, -lookTargetSize/2, -0.7, lookTargetSize, lookTargetSize, 0.2);
 		Mesh lookTargetSpike = PlatonicSolidMesher.meshCube(-0.2, -0.2, -1.2, 0.4, 0.4, 0.4);
 		lookTargetBase.combineFrom(lookTargetSpike);
 		Model lookTarget = new Model(lookTargetBase);
+		
 		
 		MouseLook mouseLook = new MouseLook();
 		ControlSet movementControls = new ControlSet();
@@ -176,67 +170,16 @@ public class GlowTest {
 		movementControls.mapMouse("punch", GLFW.GLFW_MOUSE_BUTTON_LEFT);
 		movementControls.mapMouse("activate", GLFW.GLFW_MOUSE_BUTTON_RIGHT);
 		
-		ControlSet testControls = new ControlSet();
-		
-		movementControls.map("testEnable", GLFW.GLFW_KEY_E).onPress().register(()->{
-			System.out.println("Disabling test");
-			testControls.setEnabled(false);
+		movementControls.map("quit", GLFW.GLFW_KEY_ESCAPE).onReleased().register(()->{
+			GLFW.glfwSetWindowShouldClose(window.handle(), true);
 		});
+		window.addControlSet(movementControls);
 		
-		movementControls.map("testDisable", GLFW.GLFW_KEY_R).onPress().register(()->{
-			System.out.println("Enabling test");
-			testControls.setEnabled(true);
-		});
-		
-		testControls.map("test", GLFW.GLFW_KEY_Q).onPress().register(()->{
-			System.out.println("TestPress");
-		});
-		testControls.getButton("test").onRelease().register(()->{
-			System.out.println("TestRelease");
-		});
+		System.out.println("Creating default scheduler");
 		
 		
-		/* Start GL, spawn up a window, load and compile the ShaderProgram, and attach it to the solid MeshPass. */
+		/* Create the RenderScheduler and attach shaders */
 		
-		Window window = new Window(1024, 768, "Test");
-		window.onRawKey().register( (win, key, scancode, action, mods) -> {
-			if ( key == GLFW.GLFW_KEY_ESCAPE && action == GLFW.GLFW_RELEASE )
-				GLFW.glfwSetWindowShouldClose(window.handle(), true);
-			movementControls.handleKey(key, scancode, action, mods);
-			
-			testControls.handleKey(key, scancode, action, mods);
-		});
-		
-		/*
-		GLFW.glfwSetKeyCallback(window.handle(), (win, key, scancode, action, mods) -> {
-			if ( key == GLFW.GLFW_KEY_ESCAPE && action == GLFW.GLFW_RELEASE )
-				GLFW.glfwSetWindowShouldClose(window.handle(), true);
-			movementControls.handleKey(key, scancode, action, mods);
-			
-			testControls.handleKey(key, scancode, action, mods);
-		});*/
-		
-		/*
-		GLFW.glfwSetFramebufferSizeCallback(window.handle(), (hWin, width, height)->{
-			windowSizeDirty = true;
-			windowWidth = width;
-			windowHeight = height;
-		});*/
-		/*
-		GLFW.glfwSetCursorPosCallback(window.handle(), (hWin, x, y)->{
-			mouseX = (int)x;
-			mouseY = (int)y;
-		});*/
-		
-		GLFW.glfwSetMouseButtonCallback(window.handle(), (hWin, button, action, mods)->{
-			movementControls.handleMouse(button, action, mods);
-		});
-		
-		//GLFW.glfwMakeContextCurrent(window.handle());
-		
-		//GL.createCapabilities();
-		
-		ShaderProgram prog = null;
 		RenderScheduler scheduler = RenderScheduler.createDefaultScheduler();
 		
 		try {
@@ -251,13 +194,11 @@ public class GlowTest {
 			System.out.println(err.getInfoLog());
 		}
 		
-		//Model textModel = TextMesher.getModel("Text rendered in-world");
-		//BakedModel bakedText = scheduler.bake(textModel);
 		
-		/* Bake Models into BakedModels */
+		/* Now that we have a RenderScheduler, Bake assets into BakedAssets */
 		
-		BufferedImage none = new BufferedImage(1, 1, BufferedImage.TYPE_INT_ARGB);
-		none.setRGB(0, 0, 0xFF_FFFFFF);
+		ImageData none = new ImageData(1, 1);
+		none.setPixel(0, 0, 0xFF_FFFFFF);
 		Texture noneTex = Texture.of(none);
 		scheduler.registerTexture("none", noneTex);
 		
@@ -297,11 +238,13 @@ public class GlowTest {
 		GL11.glDepthFunc(GL11.GL_LEQUAL);
 		GL11.glEnable(GL20.GL_MULTISAMPLE);
 		
+		
 		GL11.glEnable(GL11.GL_CULL_FACE);
 		
 		double SIXTY_DEGREES = 60.0 * (Math.PI/180.0);
 		
 		//TODO: We should NOT NEED THIS!
+		ShaderProgram prog = null;
 		prog = ((MeshPass)scheduler.getPass("solid")).getProgram();
 		
 		Light sun = scene.getSun();
@@ -319,24 +262,21 @@ public class GlowTest {
 		
 		scheduler.getPainter().setWindow(window);
 		scheduler.onPaint().register((painter)->{
-			painter.paintTexture(tex, 0, 0, 64, 64, 0, 0, 64, 64, 0xFF_FFFFFF);
+			//painter.paintTexture(tex, 16, 16);
+			
+			painter.paintTexture(tex, 16, 16, tex.getWidth()*1, tex.getHeight()*1, 0, 0, tex.getWidth(), tex.getHeight(), 0xFF_FFFFFF);
 		});
 		
 		while ( !GLFW.glfwWindowShouldClose(window.handle()) ) {
 			Matrix4d projection = new Matrix4d();
-			projection.setPerspective(SIXTY_DEGREES, window.getWidth()/(double)window.getHeight(), 0.01, 1000);
+			projection.setPerspective(SIXTY_DEGREES, window.getWidth()/(double)window.getHeight(), 1, 1000);
 			scene.setProjectionMatrix(projection);
 			
 			if (movementControls.isActive("grab")) {
 				movementControls.lock("grab");
-				grab = !grab;
-				if (grab) {
-					GLFW.glfwSetInputMode(window.handle(), GLFW.GLFW_CURSOR, GLFW.GLFW_CURSOR_DISABLED);
-				} else {
-					GLFW.glfwSetInputMode(window.handle(), GLFW.GLFW_CURSOR, GLFW.GLFW_CURSOR_NORMAL);
-				}
+				window.setMouseGrab(!window.isMouseGrabbed());
 			}
-			if (grab) {
+			if (window.isMouseGrabbed()) {
 				Vector3d vectorSum = new Vector3d();
 				
 				if (movementControls.isActive("up")) {
@@ -417,10 +357,11 @@ public class GlowTest {
 			
 			scene.render(scheduler, prog);
 			
-			GLFW.glfwSwapBuffers(window.handle());
+			//GLFW.glfwSwapBuffers(window.handle());
 			
+			window.swapBuffers();
+			window.pollEvents();
 			
-			GLFW.glfwPollEvents();
 			if (!pendingChunkList.isEmpty()) {
 				for(int i=0; i<2; i++) {
 					if (pendingChunkList.isEmpty()) break;
