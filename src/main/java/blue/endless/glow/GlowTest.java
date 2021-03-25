@@ -32,6 +32,7 @@ import com.playsawdust.chipper.glow.image.ImageData;
 import com.playsawdust.chipper.glow.image.ImageEditor;
 import com.playsawdust.chipper.glow.image.io.PNGImageLoader;
 import com.playsawdust.chipper.glow.mesher.PlatonicSolidMesher;
+import com.playsawdust.chipper.glow.gl.BakedFont;
 import com.playsawdust.chipper.glow.gl.BakedModel;
 import com.playsawdust.chipper.glow.gl.Texture;
 import com.playsawdust.chipper.glow.model.Material;
@@ -120,6 +121,7 @@ public class GlowTest {
 		ImageData stoneImage = MISSINGNO;
 		ImageData orangeImage = MISSINGNO;
 		ImageData grassImage = MISSINGNO;
+		RasterFont rasterFont = null;
 		try {
 			stoneImage = PNGImageLoader.load(GlowTest.class.getClassLoader().getResourceAsStream("textures/stone.png"));
 			
@@ -131,11 +133,11 @@ public class GlowTest {
 				//Grab the Roboto font and turn it into a vector font
 				VectorFont font = TTFLoader.load(new FileInputStream("Roboto-Medium.ttf"));
 				Screen screen = window.getPrimaryScreen();
-				RasterFont data = font.toRasterFont(10.0, screen.getDPI(), 1.0, 0xFF_000000, 0xFF_000000, 0.0, 512, 1.0);
+				rasterFont = font.toRasterFont(14.0, screen.getDPI(), 1.0, 0xFF_FFFFFF, 0x00_000000, 0.0, 512, 1.0);
 				
 				//Write the font into the stone texture
-				ImageEditor editor = ImageEditor.edit(stoneImage);
-				editor.drawString(data, "Sphinx of black quartz, hear my vow!", 10, 20, BlendMode.NORMAL, 1.0);
+				//ImageEditor editor = ImageEditor.edit(stoneImage);
+				//editor.drawString(rasterFont, "Sphinx of black quartz, hear my vow!", 10, 20, BlendMode.NORMAL, 1.0);
 				
 				System.out.println("Font loaded.");
 			} catch (IOException e) {
@@ -199,17 +201,18 @@ public class GlowTest {
 		
 		ImageData none = new ImageData(1, 1);
 		none.setPixel(0, 0, 0xFF_FFFFFF);
-		Texture noneTex = Texture.of(none);
+		Texture noneTex = Texture.ofFlipped(none);
 		scheduler.registerTexture("none", noneTex);
 		
-		Texture orangeTex = Texture.of(orangeImage);
+		Texture orangeTex = Texture.ofFlipped(orangeImage);
 		scheduler.registerTexture("orangeDiffuse", orangeTex);
 		//Texture tex = Texture.of(stoneImage);
-		Texture tex = Texture.of(stoneImage);
+		Texture tex = Texture.ofFlipped(stoneImage);
 		scheduler.registerTexture("stoneDiffuse", tex);
-		Texture grassTex = Texture.of(grassImage);
+		Texture grassTex = Texture.ofFlipped(grassImage);
 		scheduler.registerTexture("grassDiffuse", grassTex);
 		
+		BakedFont bakedFont = BakedFont.of(rasterFont);
 		
 		/* Setup the Scene */
 		
@@ -244,8 +247,7 @@ public class GlowTest {
 		double SIXTY_DEGREES = 60.0 * (Math.PI/180.0);
 		
 		//TODO: We should NOT NEED THIS!
-		ShaderProgram prog = null;
-		prog = ((MeshPass)scheduler.getPass("solid")).getProgram();
+		final ShaderProgram prog = ((MeshPass)scheduler.getPass("solid")).getProgram();
 		
 		Light sun = scene.getSun();
 		sun.setRadius(4096);
@@ -264,7 +266,16 @@ public class GlowTest {
 		scheduler.onPaint().register((painter)->{
 			//painter.paintTexture(tex, 16, 16);
 			
-			painter.paintTexture(tex, 16, 16, tex.getWidth()*1, tex.getHeight()*1, 0, 0, tex.getWidth(), tex.getHeight(), 0xFF_FFFFFF);
+			//painter.paintTexture(tex, 16, 16, tex.getWidth()*1, tex.getHeight()*1, 0, 0, tex.getWidth(), tex.getHeight(), 0xFF_FFFFFF);
+			
+			//bakedFont.paintString(painter, "Sphynx of Black Quartz, hear my vow!", 500, 500, 0xFF_FFFFFF);
+			
+			//noneTex.bind(prog, "tex", 0);
+			painter.paintRectangle(16, 16, 400, 200, 0xFF_330033);
+			painter.paintRectangleBorder(15, 15, 402, 202, 0xFF_FFFFFF);
+			painter.paintString(bakedFont, 18, 18+16, "The same vertex color also applies to text", 0xFF_883388);
+			
+			
 		});
 		
 		while ( !GLFW.glfwWindowShouldClose(window.handle()) ) {
