@@ -4,6 +4,12 @@ group = 'com.playsawdust.chipper'
 archivesBaseName = 'GlowTest'
 version = '0.0.1'
 
+java {
+	toolchain {
+        languageVersion = JavaLanguageVersion.of(15)
+    }
+}
+
 repositories {
 	mavenCentral()
 	maven { url "https://oss.sonatype.org/content/repositories/snapshots/" }

@@ -9,6 +9,7 @@ import java.util.HashMap;
 import java.util.List;
 
 import org.joml.Matrix4d;
+import org.joml.Vector2i;
 import org.joml.Vector3d;
 import org.joml.Vector3i;
 import org.lwjgl.glfw.GLFW;
@@ -96,7 +97,7 @@ public class GlowTest {
 	
 	public static void main(String... args) {
 		Logger log = LoggerFactory.getLogger(GlowTest.class);
-		log.debug("Test");
+		//log.debug("Test");
 		
 		/* Load up asset(s) */
 		ImageData MISSINGNO = new ImageData(256, 256);
@@ -113,7 +114,7 @@ public class GlowTest {
 		}
 		
 		/* Start GL, spawn up a window, arrange controls */
-		Window window = new Window(1024, 768, "Test");
+		Window window = Window.create(1024, 768, "Test");
 		window.setVSync(false); //Let's just tear it up as fast as we can
 		
 		
@@ -177,12 +178,15 @@ public class GlowTest {
 		});
 		window.addControlSet(movementControls);
 		
-		System.out.println("Creating default scheduler");
+		
 		
 		
 		/* Create the RenderScheduler and attach shaders */
+		//System.out.println("Creating default scheduler");
+		RenderScheduler scheduler = window.getRenderScheduler();
 		
-		RenderScheduler scheduler = RenderScheduler.createDefaultScheduler();
+		//RenderScheduler scheduler = RenderScheduler.createDefaultScheduler();
+		//window.setRenderScheduler(scheduler);
 		
 		try {
 			InputStream shaderStream = GlowTest.class.getClassLoader().getResourceAsStream("shaders/solid.xml");
@@ -216,7 +220,9 @@ public class GlowTest {
 		
 		/* Setup the Scene */
 		
-		Scene scene = new Scene();
+		Scene scene = window.getScene();
+		//Scene scene = new Scene();
+		//window.setScene(scene);
 		
 		ChunkManager chunkManager = new ChunkManager();
 		
@@ -235,14 +241,13 @@ public class GlowTest {
 		scene.addActor(loadedModel);
 		
 		/* Set the clear color, set global GL state, and start the render loop */
-		GL11.glClearColor(0.39f, 0.74f, 1.0f, 0.0f);
+		//GL11.glClearColor(0.39f, 0.74f, 1.0f, 0.0f);
+		window.setClearColor(0x00_3aa0c2);
 		
-		GL11.glEnable(GL11.GL_DEPTH_TEST);
-		GL11.glDepthFunc(GL11.GL_LEQUAL);
-		GL11.glEnable(GL20.GL_MULTISAMPLE);
-		
-		
-		GL11.glEnable(GL11.GL_CULL_FACE);
+		//GL11.glEnable(GL11.GL_DEPTH_TEST);
+		//GL11.glDepthFunc(GL11.GL_LEQUAL);
+		//GL11.glEnable(GL20.GL_MULTISAMPLE);
+		//GL11.glEnable(GL11.GL_CULL_FACE);
 		
 		double SIXTY_DEGREES = 60.0 * (Math.PI/180.0);
 		
@@ -384,6 +389,7 @@ public class GlowTest {
 		chunkManager.free();
 		tex.free();
 		prog.free();
+		window.free();
 	}
 	
 	
