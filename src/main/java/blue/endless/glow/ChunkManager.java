@@ -15,8 +15,11 @@ import com.playsawdust.chipper.glow.voxel.VoxelShape;
 public class ChunkManager extends AbstractGPUResource {
 	private static final int maxRenderDist = 32; //Just over 2GiB used for chunk management at 2,197,000 bytes
 	
-	private int renderDist = 12;
+	private int renderDist = 8;
 	private int mapSize = renderDist * 2 + 1;
+	private int xSize = mapSize;
+	private int zSize = mapSize;
+	private int ySize = mapSize/2;
 	
 	private Chunk[] chunks = new Chunk[mapSize * mapSize * mapSize];
 	
@@ -25,14 +28,19 @@ public class ChunkManager extends AbstractGPUResource {
 	private int zofs = 0;
 	
 	public void resize(int renderDist) {
-		int newMapSize = renderDist * 2 + 1;
-		Chunk[] newChunks = new Chunk[newMapSize * newMapSize * newMapSize];
+		this.renderDist = renderDist;
+		//mapSize = renderDist * 2 + 1;
+		xSize = renderDist*2+1;
+		zSize = xSize;
+		ySize = xSize / 2;
+		Chunk[] newChunks = new Chunk[xSize * zSize * ySize];
 		
 		//TODO: copy chunks over
 		
 		chunks = newChunks;
 	}
 	
+	/*
 	public void pan(int dx, int dy, int dz) {
 		Chunk[] newChunks = new Chunk[mapSize * mapSize * mapSize];
 		for(int y=0; y<mapSize; y++) {
@@ -55,15 +63,15 @@ public class ChunkManager extends AbstractGPUResource {
 		xofs += dx;
 		yofs += dy;
 		zofs += dz;
-	}
+	}*/
 	
 	private int chunkCoordOfs(int x, int y, int z) {
 		x -= xofs;
 		y -= yofs;
 		z -= zofs;
 		
-		if (x<0 || x>=mapSize || y<0 || y>=mapSize || z<0 || z>=mapSize) return -1;
-		return x + (mapSize*z) + (mapSize*mapSize*y); //xzy, so that you can grab x slivers and arraycopy them around to pan in the x direction, or grab whole xz slabs and arraycopy them to pan in the z direction
+		if (x<0 || x>=xSize || y<0 || y>=ySize || z<0 || z>=zSize) return -1;
+		return x + (xSize*z) + (xSize*zSize*y); //xzy, so that you can grab x slivers and arraycopy them around to pan in the x direction, or grab whole xz slabs and arraycopy them to pan in the z direction
 	}
 	
 	public void set(int x, int y, int z, Chunk chunk) {
@@ -73,9 +81,9 @@ public class ChunkManager extends AbstractGPUResource {
 	
 	
 	public void scheduleAll(List<Vector3i> list) {
-		for(int y=0; y<mapSize; y++) {
-			for(int z=0; z<mapSize; z++) {
-				for(int x=0; x<mapSize; x++) {
+		for(int y=0; y<ySize; y++) {
+			for(int z=0; z<zSize; z++) {
+				for(int x=0; x<xSize; x++) {
 					int ofs = chunkCoordOfs(x+xofs, y+yofs, z+zofs);
 					if (ofs!=-1) {
 						if (chunks[ofs]==null) {

@@ -179,7 +179,10 @@ public class Chunk extends AbstractGPUResource implements Actor {
 	public @Nullable BakedModel getRenderObject(Camera camera) {
 		if (bakedLods.size()==0) return null;
 		
-		int lod = (int)(camera.getPosition(null).distance(position)/110);
+		double distance = camera.getPosition(null).distance(position);
+		
+		int lod = (int)(Math.log10(distance/64.0)*2.0);
+		//int lod = (int)(camera.getPosition(null).distance(position)/110);
 		if (lod>=bakedLods.size()) lod = bakedLods.size()-1;
 		if (lod<0) lod=0;
 		//int lod = (int)(chunk.getPosition(null).distanceSquared(0, 0, 0)/150_000);

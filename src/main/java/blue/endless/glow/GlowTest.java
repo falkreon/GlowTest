@@ -1,20 +1,17 @@
 package blue.endless.glow;
 
-import java.io.File;
 import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 
 import org.joml.Matrix4d;
-import org.joml.Vector2i;
 import org.joml.Vector3d;
 import org.joml.Vector3i;
 import org.lwjgl.glfw.GLFW;
-import org.lwjgl.opengl.GL11;
-import org.lwjgl.opengl.GL20;
 import org.lwjgl.stb.STBPerlin;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -28,9 +25,7 @@ import com.playsawdust.chipper.glow.event.FixedTimestep;
 import com.playsawdust.chipper.glow.gl.shader.ShaderException;
 import com.playsawdust.chipper.glow.gl.shader.ShaderIO;
 import com.playsawdust.chipper.glow.gl.shader.ShaderProgram;
-import com.playsawdust.chipper.glow.image.BlendMode;
 import com.playsawdust.chipper.glow.image.ImageData;
-import com.playsawdust.chipper.glow.image.ImageEditor;
 import com.playsawdust.chipper.glow.image.io.PNGImageLoader;
 import com.playsawdust.chipper.glow.mesher.PlatonicSolidMesher;
 import com.playsawdust.chipper.glow.gl.BakedFont;
@@ -40,9 +35,8 @@ import com.playsawdust.chipper.glow.model.Material;
 import com.playsawdust.chipper.glow.model.MaterialAttribute;
 import com.playsawdust.chipper.glow.model.Mesh;
 import com.playsawdust.chipper.glow.model.Model;
-import com.playsawdust.chipper.glow.model.boxanim.BoxModel;
-import com.playsawdust.chipper.glow.model.io.BBModelLoader;
 import com.playsawdust.chipper.glow.pass.MeshPass;
+import com.playsawdust.chipper.glow.scene.Actor;
 import com.playsawdust.chipper.glow.scene.Collision;
 import com.playsawdust.chipper.glow.scene.CollisionResult;
 import com.playsawdust.chipper.glow.scene.Light;
@@ -55,7 +49,7 @@ import com.playsawdust.chipper.glow.voxel.VoxelShape;
 
 public class GlowTest {
 	private static final double SPEED_FORWARD = 0.2;
-	private static final double SPEED_RUN = 0.6;
+	private static final double SPEED_RUN = 1.5;
 	
 	private static final double SPEED_LIMIT = SPEED_FORWARD;
 	private static final double SPEED_LIMIT_RUN = SPEED_RUN;
@@ -136,10 +130,6 @@ public class GlowTest {
 				Screen screen = window.getPrimaryScreen();
 				rasterFont = font.toRasterFont(14.0, screen.getDPI(), 1.0, 0xFF_FFFFFF, 0x00_000000, 0.0, 512, 1.0);
 				
-				//Write the font into the stone texture
-				//ImageEditor editor = ImageEditor.edit(stoneImage);
-				//editor.drawString(rasterFont, "Sphinx of black quartz, hear my vow!", 10, 20, BlendMode.NORMAL, 1.0);
-				
 				System.out.println("Font loaded.");
 			} catch (IOException e) {
 				e.printStackTrace();
@@ -158,6 +148,7 @@ public class GlowTest {
 		//	ex.printStackTrace();
 		//}
 		
+		//Manually create the lookTarget mesh :o
 		double lookTargetSize = 1 + 1/32.0;
 		Mesh lookTargetBase = PlatonicSolidMesher.meshCube(-lookTargetSize/2, -lookTargetSize/2, -0.7, lookTargetSize, lookTargetSize, 0.2);
 		Mesh lookTargetSpike = PlatonicSolidMesher.meshCube(-0.2, -0.2, -1.2, 0.4, 0.4, 0.4);
@@ -168,6 +159,7 @@ public class GlowTest {
 		MouseLook mouseLook = new MouseLook();
 		ControlSet movementControls = new ControlSet();
 		movementControls.mapWASD();
+		movementControls.map("jump", GLFW.GLFW_KEY_SPACE);
 		movementControls.map("grab", GLFW.GLFW_KEY_TAB);
 		movementControls.map("run", GLFW.GLFW_KEY_LEFT_SHIFT);
 		movementControls.mapMouse("punch", GLFW.GLFW_MOUSE_BUTTON_LEFT);
@@ -180,29 +172,8 @@ public class GlowTest {
 		
 		
 		
-		
-		/* Create the RenderScheduler and attach shaders */
-		//System.out.println("Creating default scheduler");
+		/* Bake assets into BakedAssets using the Window's scheduler */
 		RenderScheduler scheduler = window.getRenderScheduler();
-		
-		//RenderScheduler scheduler = RenderScheduler.createDefaultScheduler();
-		//window.setRenderScheduler(scheduler);
-		
-		try {
-			InputStream shaderStream = GlowTest.class.getClassLoader().getResourceAsStream("shaders/solid.xml");
-			HashMap<String, ShaderIO.ShaderPass> programs = ShaderIO.load(shaderStream);
-			scheduler.attachShaders(programs);
-			//MeshPass solidPass = (MeshPass) scheduler.getPass("solid");
-			//solidPass.setShader(prog);
-		} catch (IOException ex) {
-			ex.printStackTrace();
-		} catch (ShaderException err) {
-			System.out.println(err.getInfoLog());
-		}
-		
-		
-		/* Now that we have a RenderScheduler, Bake assets into BakedAssets */
-		
 		ImageData none = new ImageData(1, 1);
 		none.setPixel(0, 0, 0xFF_FFFFFF);
 		Texture noneTex = Texture.ofFlipped(none);
@@ -218,11 +189,11 @@ public class GlowTest {
 		
 		BakedFont bakedFont = BakedFont.of(rasterFont);
 		
+		
+		
 		/* Setup the Scene */
 		
 		Scene scene = window.getScene();
-		//Scene scene = new Scene();
-		//window.setScene(scene);
 		
 		ChunkManager chunkManager = new ChunkManager();
 		
@@ -241,57 +212,42 @@ public class GlowTest {
 		scene.addActor(loadedModel);
 		
 		/* Set the clear color, set global GL state, and start the render loop */
-		//GL11.glClearColor(0.39f, 0.74f, 1.0f, 0.0f);
 		window.setClearColor(0x00_3aa0c2);
-		
-		//GL11.glEnable(GL11.GL_DEPTH_TEST);
-		//GL11.glDepthFunc(GL11.GL_LEQUAL);
-		//GL11.glEnable(GL20.GL_MULTISAMPLE);
-		//GL11.glEnable(GL11.GL_CULL_FACE);
 		
 		double SIXTY_DEGREES = 60.0 * (Math.PI/180.0);
 		
 		//TODO: We should NOT NEED THIS!
-		final ShaderProgram prog = ((MeshPass)scheduler.getPass("solid")).getProgram();
+		//final ShaderProgram prog = ((MeshPass)scheduler.getPass("solid")).getProgram();
+		//System.out.println(prog);
 		
 		Light sun = scene.getSun();
-		sun.setRadius(4096);
-		sun.setPosition(5*32, 5*32, 5*32);
+		sun.setRadius(296);
+		sun.setPosition(5*32, 8*32, 5*32);
 		
+		Vector3d lastPosition = new Vector3d(32*4, 128, 32*4);
+		Vector3d nextPosition = new Vector3d(lastPosition); //distinct objects, same value
 		
+		scene.getCamera().setPosition(lastPosition);//32*4, 128, 32*4);
 		
-		scene.getCamera().setPosition(32*4, 128, 32*4);
+		FixedTimestep fpsCounter = FixedTimestep.ofTPS(4);
+		int[] slot = { 0 }; // Which slot we're on in the ring buffer
+		int[] ringBuffer = { 0, 0, 0, 0, 0, 0, 0, 0 };
+		int[] frames = { 0 };
+		float[] fps = { 0 };
+		fpsCounter.onTick().register((elapsed)->{
+			ringBuffer[slot[0]] = frames[0]; // drop the current frame count into the ring buffer
+			frames[0] = 0; // clear the frame count
+			slot[0] = (slot[0] + 1) % ringBuffer.length; // Slide slot across the ring buffer for next iteration
+			int accumulator = 0;
+			for(int i=0; i<ringBuffer.length; i++) {
+				accumulator+= ringBuffer[i];
+			}
+			fps[0] = accumulator / 2.0f;
+		});
 		
 		FixedTimestep timestep = FixedTimestep.ofTPS(20);//, 25);
 		timestep.onTick().register((elapsed)->{
-			//System.out.println("Tick! ("+elapsed+")");
-		});
-		
-		scheduler.getPainter().setWindow(window);
-		scheduler.onPaint().register((painter)->{
-			//painter.paintTexture(tex, 16, 16);
 			
-			//painter.paintTexture(tex, 16, 16, tex.getWidth()*1, tex.getHeight()*1, 0, 0, tex.getWidth(), tex.getHeight(), 0xFF_FFFFFF);
-			
-			//bakedFont.paintString(painter, "Sphynx of Black Quartz, hear my vow!", 500, 500, 0xFF_FFFFFF);
-			
-			//noneTex.bind(prog, "tex", 0);
-			painter.paintRectangle(16, 16, 400, 200, 0xFF_330033);
-			painter.paintRectangleBorder(15, 15, 402, 202, 0xFF_FFFFFF);
-			painter.paintString(bakedFont, 18, 18+16, "The same vertex color also applies to text", 0xFF_883388);
-			
-			
-		});
-		
-		while ( !GLFW.glfwWindowShouldClose(window.handle()) ) {
-			Matrix4d projection = new Matrix4d();
-			projection.setPerspective(SIXTY_DEGREES, window.getWidth()/(double)window.getHeight(), 1, 1000);
-			scene.setProjectionMatrix(projection);
-			
-			if (movementControls.isActive("grab")) {
-				movementControls.lock("grab");
-				window.setMouseGrab(!window.isMouseGrabbed());
-			}
 			if (window.isMouseGrabbed()) {
 				Vector3d vectorSum = new Vector3d();
 				
@@ -318,24 +274,75 @@ public class GlowTest {
 				
 				if (movementControls.isActive("right")) {
 					Vector3d rightVec = mouseLook.getRightVector(null);
-					rightVec.mul(SPEED_STRAFE);
+					if (movementControls.isActive("run")) {
+						rightVec.mul(SPEED_RUN);
+					} else {
+						rightVec.mul(SPEED_STRAFE);
+					}
 					
 					vectorSum.add(rightVec);
 				}
 				
 				if (movementControls.isActive("left")) {
 					Vector3d leftVec = mouseLook.getRightVector(null);
-					leftVec.mul(-SPEED_STRAFE);
+					if (movementControls.isActive("run")) {
+						leftVec.mul(-SPEED_RUN);
+					} else {
+						leftVec.mul(-SPEED_STRAFE);
+					}
 					
 					vectorSum.add(leftVec);
 				}
+				
+				if (movementControls.isActive("jump")) {
+					Vector3d upVec = new Vector3d(0,1,0);
+					if (movementControls.isActive("run")) {
+						upVec.mul(SPEED_RUN);
+					} else {
+						upVec.mul(SPEED_STRAFE);
+					}
+					
+					vectorSum.add(upVec);
+				}
+				
+				//Limit speed
 				if (movementControls.isActive("run")) {
 					if (vectorSum.length()>SPEED_LIMIT_RUN) vectorSum.normalize().mul(SPEED_LIMIT_RUN);
 				} else {
 					if (vectorSum.length()>SPEED_LIMIT) vectorSum.normalize().mul(SPEED_LIMIT);
 				}
-				scene.getCamera().setPosition(vectorSum.add(scene.getCamera().getPosition(null)));
+				
+				//Apply delta
+				//scene.getCamera().setPosition(vectorSum.add(scene.getCamera().getPosition(null)));
+				lastPosition.set(nextPosition);
+				nextPosition.add(vectorSum, nextPosition);
+			}
 			
+		});
+		
+		//scheduler.getPainter().setWindow(window);
+		window.onPaint().register((painter)->{
+			painter.paintRectangle(16, 16, 800, 80, 0xFF_330033);
+			painter.paintRectangleBorder(15, 15, 802, 82, 0xFF_FFFFFF);
+			painter.paintString(bakedFont, 18, 18+16, "Sphinx of black quartz, judge my vow!", 0xFF_883388);
+			painter.paintString(bakedFont, 18, 18+16+20, ""+fps[0]+" ( "+Arrays.toString(ringBuffer)+" )", 0xFF_888833);
+		});
+		
+		while ( !GLFW.glfwWindowShouldClose(window.handle()) ) {
+			double delta = timestep.poll();
+			frames[0]++;
+			fpsCounter.poll();
+			
+			Matrix4d projection = new Matrix4d();
+			projection.setPerspective(SIXTY_DEGREES, window.getWidth()/(double)window.getHeight(), 1, 1000);
+			scene.setProjectionMatrix(projection);
+			
+			if (movementControls.isActive("grab")) {
+				movementControls.lock("grab");
+				window.setMouseGrab(!window.isMouseGrabbed());
+			}
+			if (window.isMouseGrabbed()) {
+				
 				mouseLook.step(window.getMouseX(), window.getMouseY(), window.getWidth(), window.getHeight());
 				scene.getCamera().setOrientation(mouseLook.getMatrix());
 				
@@ -368,14 +375,17 @@ public class GlowTest {
 					}
 				}
 				
-				timestep.poll();
+				//timestep.poll();
 			}
-			
-			scene.render(scheduler, prog);
-			
-			//GLFW.glfwSwapBuffers(window.handle());
-			
-			window.swapBuffers();
+			//System.out.println(delta);
+			Vector3d lastComponent = new Vector3d();
+			lastPosition.mul(1-delta, lastComponent);
+			Vector3d nextComponent = new Vector3d();
+			nextPosition.mul(delta, nextComponent);
+			Vector3d curCamera = lastComponent.add(nextComponent);
+			scene.getCamera().setPosition(curCamera);
+
+			window.render();
 			window.pollEvents();
 			
 			if (!pendingChunkList.isEmpty()) {
@@ -388,7 +398,7 @@ public class GlowTest {
 		
 		chunkManager.free();
 		tex.free();
-		prog.free();
+		//prog.free();
 		window.free();
 	}
 	
@@ -409,9 +419,9 @@ public class GlowTest {
 				int wz = z+chunk.getZ();
 				int wy = chunk.getY();
 				
-				int terrainHeight = (int) ( STBPerlin.stb_perlin_ridge_noise3(wx*0.003f, 0, wz*0.003f, 2.0f, 0.5f, 1.0f, 3) * 128.0 + 8.0 );
+				int terrainHeight = (int) ( STBPerlin.stb_perlin_ridge_noise3(wx*0.003f, 0, wz*0.003f, 2.0f, 0.5f, 1.0f, 3) * 160.0 + 8.0 );
 				
-				Block surface = (terrainHeight>64) ? BLOCK_STONE : BLOCK_GRASS;
+				Block surface = (terrainHeight>72) ? BLOCK_STONE : BLOCK_GRASS;
 				Block interior = BLOCK_STONE;
 				
 				for(int y=0; y<32; y++) {
