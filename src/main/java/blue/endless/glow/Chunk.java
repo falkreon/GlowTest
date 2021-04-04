@@ -21,13 +21,14 @@ import com.playsawdust.chipper.glow.voxel.MeshableVoxel;
 import com.playsawdust.chipper.glow.voxel.VoxelPatch;
 
 public class Chunk extends AbstractGPUResource implements Actor {
-	private Vector3d position = new Vector3d();;
+	private Vector3d position = new Vector3d();
 	private VoxelPatch patch;
 	private ArrayList<Model> modelLods = new ArrayList<>();
 	private ArrayList<BakedModel> bakedLods = new ArrayList<>();
 	private boolean modelDirty = true;
 	private boolean bakeDirty = true;
 	private boolean empty = false;
+	private CollisionVolume collisionVolume;
 	
 	private Chunk() {}
 	
@@ -192,7 +193,9 @@ public class Chunk extends AbstractGPUResource implements Actor {
 
 	@Override
 	public @Nullable CollisionVolume getCollision() {
-		return null; //This will change!
+		if (this.collisionVolume==null) this.collisionVolume = new CollisionVolume.Sphere(16, 16, 16, Math.sqrt(16*16 + 16*16 + 16*16));
+		
+		return this.collisionVolume;
 	}
 
 	@Override
